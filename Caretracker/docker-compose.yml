@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: caretrack_db
+    environment:
+      POSTGRES_USER: caretrack
+      POSTGRES_PASSWORD: caretrackpw
+      POSTGRES_DB: caretrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - caretrack_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: caretrack_backend
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: caretrack
+      DB_PASSWORD: caretrackpw
+      DB_NAME: caretrack
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: caretrack_frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  caretrack_data:
