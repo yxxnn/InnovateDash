@@ -1,23 +1,27 @@
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
-export async function getTodayTasks(userId) {
-  const res = await fetch(`${BASE}/tasks/today?userId=${userId}`);
-  if (!res.ok) throw new Error("Failed to load tasks");
-  return res.json();
-}
+export const getCaregiverOverview = () =>
+  fetch(`${BASE}/caregiver/overview`).then((r) => r.json());
 
-export async function toggleTaskDone(taskId, userId) {
-  const res = await fetch(`${BASE}/tasks/${taskId}/done`, {
+export const getTodayTasks = (userId) =>
+  fetch(`${BASE}/tasks/today?userId=${userId}`).then((r) => r.json());
+
+export const toggleTaskDone = (taskId, userId) =>
+  fetch(`${BASE}/tasks/${taskId}/done`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) throw new Error("Failed to update task");
-  return res.json();
-}
+  }).then((r) => r.json());
 
-export async function getCaregiverOverview() {
-  const res = await fetch(`${BASE}/caregiver/overview`);
-  if (!res.ok) throw new Error("Failed to load overview");
-  return res.json();
-}
+export const getTasks = (userId) =>
+  fetch(`${BASE}/tasks?userId=${userId}`).then((r) => r.json());
+
+export const createTask = (payload) =>
+  fetch(`${BASE}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then((r) => r.json());
+
+export const deleteTask = (taskId) =>
+  fetch(`${BASE}/tasks/${taskId}`, { method: "DELETE" }).then((r) => r.json());

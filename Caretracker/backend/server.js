@@ -5,25 +5,19 @@ import { pool } from "./db.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors({ origin: true }));
+app.use(cors());
 app.use(express.json());
 
-// Helper: get today's date key (YYYY-MM-DD)
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// --------------------
-// Health Check
-// --------------------
+/* ---------------- HEALTH ---------------- */
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
+  res.json({ status: "ok" });
 });
 
-// --------------------
-// DB Init + Seed (MVP)
-// --------------------
+/* ---------------- DB INIT ---------------- */
 app.get("/db/init", async (req, res) => {
   try {
     await pool.query(`
@@ -35,204 +29,199 @@ app.get("/db/init", async (req, res) => {
 
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id),
+        user_id TEXT NOT NULL,
         title TEXT NOT NULL,
         emoji TEXT NOT NULL,
         time TEXT NOT NULL,
-        is_critical BOOLEAN NOT NULL DEFAULT FALSE
+        is_critical BOOLEAN DEFAULT FALSE
       );
 
       CREATE TABLE IF NOT EXISTS task_logs (
         id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL REFERENCES tasks(id),
-        user_id TEXT NOT NULL REFERENCES users(id),
+        task_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
         date_iso TEXT NOT NULL,
         done_at_iso TEXT NOT NULL
       );
     `);
 
-    // Seed default data only if empty
-    const uCount = await pool.query(`SELECT COUNT(*)::int AS c FROM users;`);
-    if (uCount.rows[0].c === 0) {
+    const count = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
+    if (count.rows[0].c === 0) {
       await pool.query(`
-        INSERT INTO users (id, name, role) VALUES
+        INSERT INTO users VALUES
         ('u1','Alex','User'),
         ('c1','Grace','Caregiver');
-      `);
 
-      await pool.query(`
-        INSERT INTO tasks (id, user_id, title, emoji, time, is_critical) VALUES
-        ('t1','u1','Brush Teeth','🪥','8:00 AM',false),
-        ('t2','u1','Take Medicine','💊','9:00 AM',true),
+        INSERT INTO tasks VALUES
+        ('t1','u1','Take Medicine','💊','9:00 AM',true),
+        ('t2','u1','Brush Teeth','🪥','8:00 AM',false),
         ('t3','u1','Clean Room','🧹','6:00 PM',false);
       `);
     }
 
-    res.json({ ok: true, message: "DB initialized + seeded" });
+    res.json({ ok: true });
   } catch (e) {
-    console.error("DB init error:", e);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ error: e.message });
   }
 });
 
-// --------------------
-// Get today's tasks for a user (DB)
-// --------------------
-app.get("/tasks/today", async (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ message: "userId is required" });
-
+/* ---------------- CAREGIVER OVERVIEW (FIX) ---------------- */
+app.get("/caregiver/overview", async (req, res) => {
   try {
     const day = todayKey();
 
-    const taskRes = await pool.query(
-      `SELECT id, title, emoji, time, is_critical
-       FROM tasks
-       WHERE user_id = $1
-       ORDER BY id`,
+    // For MVP: caregiver monitors user u1
+    const userRow = await pool.query(`SELECT id, name FROM users WHERE id='u1'`);
+    const userId = userRow.rows[0]?.id || "u1";
+    const name = userRow.rows[0]?.name || "Alex";
+
+    const tasks = await pool.query(
+      `SELECT id, is_critical FROM tasks WHERE user_id=$1`,
       [userId]
     );
 
-    const logRes = await pool.query(
-      `SELECT task_id
-       FROM task_logs
-       WHERE user_id = $1 AND date_iso = $2`,
+    const logs = await pool.query(
+      `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
       [userId, day]
     );
 
-    const doneSet = new Set(logRes.rows.map((r) => r.task_id));
+    const doneSet = new Set(logs.rows.map((r) => r.task_id));
 
-    const out = taskRes.rows.map((t) => ({
+    const total = tasks.rows.length;
+    const done = tasks.rows.filter((t) => doneSet.has(t.id)).length;
+
+    const missedCritical = tasks.rows.filter(
+      (t) => t.is_critical && !doneSet.has(t.id)
+    ).length;
+
+    const risk = missedCritical > 0 ? "Medium" : "Low";
+
+    res.json({
+      date: day,
+      overview: [{ name, done, total, missedCritical, risk }],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---------------- USER: TODAY TASKS ---------------- */
+app.get("/tasks/today", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const day = todayKey();
+
+  const tasks = await pool.query(
+    `SELECT * FROM tasks WHERE user_id=$1 ORDER BY time`,
+    [userId]
+  );
+
+  const logs = await pool.query(
+    `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
+    [userId, day]
+  );
+
+  const doneSet = new Set(logs.rows.map((r) => r.task_id));
+
+  res.json({
+    date: day,
+    tasks: tasks.rows.map((t) => ({
       id: t.id,
       title: t.title,
       emoji: t.emoji,
       time: t.time,
       isCritical: t.is_critical,
       done: doneSet.has(t.id),
-    }));
-
-    res.json({ date: day, tasks: out });
-  } catch (e) {
-    console.error("tasks/today error:", e);
-    res.status(500).json({ message: "Failed to load tasks", error: e.message });
-  }
+    })),
+  });
 });
 
-// --------------------
-// Toggle task done (DB)
-// --------------------
+/* ---------------- TOGGLE DONE ---------------- */
 app.post("/tasks/:taskId/done", async (req, res) => {
   const { taskId } = req.params;
   const { userId } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId required" });
 
-  if (!userId) return res.status(400).json({ message: "userId is required" });
+  const day = todayKey();
 
-  try {
-    const day = todayKey();
+  const exists = await pool.query(
+    `SELECT id FROM task_logs WHERE task_id=$1 AND user_id=$2 AND date_iso=$3`,
+    [taskId, userId, day]
+  );
 
-    // check task belongs to user (basic validation)
-    const taskCheck = await pool.query(
-      `SELECT id FROM tasks WHERE id=$1 AND user_id=$2`,
-      [taskId, userId]
-    );
-    if (taskCheck.rows.length === 0) {
-      return res.status(404).json({ message: "Task not found for this user" });
-    }
-
-    const existing = await pool.query(
-      `SELECT id FROM task_logs WHERE task_id=$1 AND user_id=$2 AND date_iso=$3`,
-      [taskId, userId, day]
-    );
-
-    if (existing.rows.length > 0) {
-      await pool.query(`DELETE FROM task_logs WHERE id=$1`, [
-        existing.rows[0].id,
-      ]);
-      return res.json({ taskId, done: false });
-    }
-
-    await pool.query(
-      `INSERT INTO task_logs (id, task_id, user_id, date_iso, done_at_iso)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [
-        "log_" + Math.random().toString(16).slice(2),
-        taskId,
-        userId,
-        day,
-        new Date().toISOString(),
-      ]
-    );
-
-    res.json({ taskId, done: true });
-  } catch (e) {
-    console.error("toggle done error:", e);
-    res.status(500).json({ message: "Failed to update task", error: e.message });
+  if (exists.rows.length) {
+    await pool.query(`DELETE FROM task_logs WHERE id=$1`, [
+      exists.rows[0].id,
+    ]);
+    return res.json({ done: false });
   }
+
+  await pool.query(`INSERT INTO task_logs VALUES ($1,$2,$3,$4,$5)`, [
+    "log_" + Math.random().toString(16).slice(2),
+    taskId,
+    userId,
+    day,
+    new Date().toISOString(),
+  ]);
+
+  res.json({ done: true });
 });
 
-// --------------------
-// Caregiver overview (DB)
-// --------------------
-app.get("/caregiver/overview", async (req, res) => {
-  try {
-    // MVP: caregiver watches user u1 only
-    const pwids = [{ userId: "u1", name: "Alex" }];
-    const day = todayKey();
+/* ---------------- CAREGIVER: LIST TASKS ---------------- */
+app.get("/tasks", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
 
-    const overview = [];
+  const r = await pool.query(
+    `SELECT * FROM tasks WHERE user_id=$1 ORDER BY time`,
+    [userId]
+  );
 
-    for (const p of pwids) {
-      const taskRes = await pool.query(
-        `SELECT id, is_critical FROM tasks WHERE user_id=$1`,
-        [p.userId]
-      );
-
-      const total = taskRes.rows.length;
-
-      const doneRes = await pool.query(
-        `SELECT COUNT(*)::int AS c
-         FROM task_logs
-         WHERE user_id=$1 AND date_iso=$2`,
-        [p.userId, day]
-      );
-      const done = doneRes.rows[0].c;
-
-      // missed critical if any critical task not done
-      const criticalIds = taskRes.rows
-        .filter((t) => t.is_critical)
-        .map((t) => t.id);
-
-      let missedCritical = false;
-      if (criticalIds.length > 0) {
-        const critDoneRes = await pool.query(
-          `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2 AND task_id = ANY($3)`,
-          [p.userId, day, criticalIds]
-        );
-        const critDoneSet = new Set(critDoneRes.rows.map((r) => r.task_id));
-        missedCritical = criticalIds.some((id) => !critDoneSet.has(id));
-      }
-
-      overview.push({
-        name: p.name,
-        done,
-        total,
-        missedCritical,
-        risk: missedCritical ? "Medium" : "Low",
-      });
-    }
-
-    res.json({ date: day, overview });
-  } catch (e) {
-    console.error("caregiver/overview error:", e);
-    res
-      .status(500)
-      .json({ message: "Failed to load overview", error: e.message });
-  }
+  res.json({
+    tasks: r.rows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      emoji: t.emoji,
+      time: t.time,
+      isCritical: t.is_critical,
+    })),
+  });
 });
 
-// --------------------
-// Start server
-// --------------------
+/* ---------------- CAREGIVER: ADD TASK ---------------- */
+app.post("/tasks", async (req, res) => {
+  const { userId, title, emoji, time, isCritical } = req.body;
+  if (!userId || !title || !emoji || !time)
+    return res.status(400).json({ message: "Missing fields" });
+
+  const id = "t_" + Math.random().toString(16).slice(2);
+
+  await pool.query(`INSERT INTO tasks VALUES ($1,$2,$3,$4,$5,$6)`, [
+    id,
+    userId,
+    title,
+    emoji,
+    time,
+    Boolean(isCritical),
+  ]);
+
+  res.status(201).json({ id });
+});
+
+/* ---------------- CAREGIVER: DELETE TASK ---------------- */
+app.delete("/tasks/:taskId", async (req, res) => {
+  const { taskId } = req.params;
+
+  await pool.query(`DELETE FROM task_logs WHERE task_id=$1`, [taskId]);
+  const r = await pool.query(`DELETE FROM tasks WHERE id=$1`, [taskId]);
+
+  if (!r.rowCount) return res.status(404).json({ message: "Not found" });
+
+  res.json({ ok: true });
+});
+
+/* ---------------- START ---------------- */
 app.listen(PORT, () => {
-  console.log(`✅ Backend running on http://localhost:${PORT}`);
+  console.log(`Backend running on http://localhost:${PORT}`);
 });
