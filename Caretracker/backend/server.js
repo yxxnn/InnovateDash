@@ -9,8 +9,81 @@ app.use(cors());
 app.use(express.json());
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const y = parts.find(p => p.type === "year")?.value;
+  const m = parts.find(p => p.type === "month")?.value;
+  const d = parts.find(p => p.type === "day")?.value;
+  return `${y}-${m}-${d}`; // YYYY-MM-DD
 }
+
+
+/* =====================================================
+   FEATURE : NOTIFICATION HELPER FUNCTIONS
+   -----------------------------------------------------
+   Utility functions to handle time comparison, quiet
+   hours detection, and notification creation.
+===================================================== */
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+function nowHHMM() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Singapore",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const hh = parts.find(p => p.type === "hour")?.value ?? "00";
+  const mm = parts.find(p => p.type === "minute")?.value ?? "00";
+  return `${hh}:${mm}`;
+}
+function hhmmToMinutes(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+function inQuietHours(now, start, end) {
+  // handles overnight ranges like 22:00 -> 07:00
+  const n = hhmmToMinutes(now);
+  const s = hhmmToMinutes(start);
+  const e = hhmmToMinutes(end);
+  if (s <= e) return n >= s && n < e;
+  return n >= s || n < e;
+}
+
+// Your tasks store time like "9:00 AM".
+// This converts "9:00 AM" -> "09:00", "6:00 PM" -> "18:00"
+function taskTimeToHHMM(timeStr) {
+  const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ap = m[3].toUpperCase();
+  if (ap === "AM" && hh === 12) hh = 0;
+  if (ap === "PM" && hh !== 12) hh += 12;
+  return `${pad2(hh)}:${pad2(mm)}`;
+}
+
+async function insertNotification({ userId, taskId = null, type, message }) {
+  await pool.query(
+    `INSERT INTO notifications (id, user_id, task_id, type, message, created_at_iso)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      "n_" + Math.random().toString(16).slice(2),
+      userId,
+      taskId,
+      type,
+      message,
+      new Date().toISOString(),
+    ]
+  );
+}
+
 
 /* ---------------- HEALTH ---------------- */
 app.get("/health", (req, res) => {
@@ -43,7 +116,31 @@ app.get("/db/init", async (req, res) => {
         date_iso TEXT NOT NULL,
         done_at_iso TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS notification_prefs (
+      user_id TEXT PRIMARY KEY,
+      quiet_start TEXT DEFAULT '22:00',   -- HH:MM
+      quiet_end   TEXT DEFAULT '07:00',   -- HH:MM
+      followup_minutes INT DEFAULT 15     -- send follow-up if still not done
+      );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      task_id TEXT,
+      type TEXT NOT NULL,                -- 'REMINDER' | 'FOLLOW_UP' | 'SUMMARY'
+      message TEXT NOT NULL,
+      created_at_iso TEXT NOT NULL,
+      read BOOLEAN DEFAULT FALSE
+      );
+
     `);
+
+    await pool.query(`
+    INSERT INTO notification_prefs (user_id) VALUES ('u1')
+    ON CONFLICT (user_id) DO NOTHING;
+   `);
+
 
     const count = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
     if (count.rows[0].c === 0) {
@@ -221,7 +318,179 @@ app.delete("/tasks/:taskId", async (req, res) => {
   res.json({ ok: true });
 });
 
+/* =====================================================
+   FEATURE : NOTIFICATION APIs
+   -----------------------------------------------------
+   Allows frontend to fetch notifications and mark
+   them as read.
+===================================================== */
+// Get notifications
+app.get("/notifications", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const r = await pool.query(
+    `SELECT id, task_id AS "taskId", type, message, created_at_iso AS "createdAt", read
+     FROM notifications
+     WHERE user_id=$1
+     ORDER BY created_at_iso DESC
+     LIMIT 50`,
+    [userId]
+  );
+
+  res.json({ notifications: r.rows });
+});
+
+// Mark notification as read
+app.post("/notifications/:id/read", async (req, res) => {
+  const { id } = req.params;
+  await pool.query(`UPDATE notifications SET read=true WHERE id=$1`, [id]);
+  res.json({ ok: true });
+});
+
+// Get / Update notification preferences
+app.get("/prefs/notifications", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const r = await pool.query(
+    `SELECT quiet_start AS "quietStart", quiet_end AS "quietEnd", followup_minutes AS "followupMinutes"
+     FROM notification_prefs WHERE user_id=$1`,
+    [userId]
+  );
+
+  if (!r.rows.length) {
+    await pool.query(`INSERT INTO notification_prefs (user_id) VALUES ($1)`, [userId]);
+    return res.json({ quietStart: "22:00", quietEnd: "07:00", followupMinutes: 15 });
+  }
+
+  res.json(r.rows[0]);
+});
+
+app.post("/prefs/notifications", async (req, res) => {
+  const { userId, quietStart, quietEnd, followupMinutes } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  await pool.query(
+    `INSERT INTO notification_prefs (user_id, quiet_start, quiet_end, followup_minutes)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (user_id) DO UPDATE
+     SET quiet_start=EXCLUDED.quiet_start,
+         quiet_end=EXCLUDED.quiet_end,
+         followup_minutes=EXCLUDED.followup_minutes`,
+    [userId, quietStart || "22:00", quietEnd || "07:00", Number(followupMinutes ?? 15)]
+  );
+
+  res.json({ ok: true });
+});
+
+
+
+/* =====================================================
+   FEATURE 1: REMINDER BACKGROUND WORKER
+   -----------------------------------------------------
+   Runs every minute to:
+   - Send task reminders at scheduled time
+   - Send follow-up if task not completed
+   - Respect quiet hours
+===================================================== */
+
+async function reminderWorker() {
+  const userId = "u1"; // demo user
+  const now = nowHHMM();
+  const today = todayKey();
+
+  const pref = await pool.query(
+    `SELECT * FROM notification_prefs WHERE user_id=$1`,
+    [userId]
+  );
+
+  const prefs = pref.rows[0] || { quiet_start: "22:00", quiet_end: "07:00", followup_minutes: 15 };
+
+  if (inQuietHours(now, prefs.quiet_start, prefs.quiet_end)) return;
+
+  const tasks = await pool.query(`SELECT * FROM tasks WHERE user_id=$1`, [userId]);
+  const done = await pool.query(
+    `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
+    [userId, today]
+  );
+
+  const doneSet = new Set(done.rows.map(x => x.task_id));
+
+  for (const t of tasks.rows) {
+    const taskTime = taskTimeToHHMM(t.time);
+    if (!taskTime) continue;
+
+    if (taskTime === now && !doneSet.has(t.id)) {
+      await insertNotification({
+        userId,
+        taskId: t.id,
+        type: "REMINDER",
+        message: `Time to complete: ${t.title}`
+      });
+    }
+  }
+}
+
+setInterval(reminderWorker, 60 * 1000);
+
+
+
+/* =====================================================
+   FEATURE 2: TASK HISTORY & PROGRESS ANALYTICS
+   -----------------------------------------------------
+   Returns 7-day completion stats and streaks to
+   support caregiver monitoring and planning.
+===================================================== */
+// Weekly analytics (last 7 days ending today or endDate)
+app.get("/analytics/weekly", async (req, res) => {
+  const { userId, endDate } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const end = endDate ? new Date(endDate + "T00:00:00") : new Date();
+  const days = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const tasksR = await pool.query(`SELECT id FROM tasks WHERE user_id=$1`, [userId]);
+  const totalTasks = tasksR.rows.length;
+
+  const logsR = await pool.query(
+    `SELECT date_iso, COUNT(*)::int AS done
+     FROM task_logs
+     WHERE user_id=$1 AND date_iso = ANY($2)
+     GROUP BY date_iso`,
+    [userId, days]
+  );
+
+  const doneMap = new Map(logsR.rows.map((r) => [r.date_iso, r.done]));
+  const series = days.map((d) => {
+    const done = doneMap.get(d) || 0;
+    const total = totalTasks;
+    const rate = total === 0 ? 0 : Math.round((done / total) * 100);
+    return { date: d, done, total, rate };
+  });
+
+  // Simple streak: consecutive days with rate == 100
+  let streak = 0;
+  for (let i = series.length - 1; i >= 0; i--) {
+    if (series[i].total > 0 && series[i].rate === 100) streak++;
+    else break;
+  }
+
+  res.json({ totalTasks, streak, series });
+});
+
+
+
 /* ---------------- START ---------------- */
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
+
+
+

@@ -4,6 +4,7 @@ export default function AppHeader({
   userName = "User",
   role = "User",
   onLogout,
+  onOpenInsights,
 }) {
   return (
     <div style={styles.wrap}>
@@ -19,6 +20,19 @@ export default function AppHeader({
             <div style={styles.name}>{userName}</div>
             <div style={styles.role}>{role}</div>
           </div>
+
+          <button
+  type="button"
+  style={styles.bell}
+  onClick={() => {
+    if (onOpenInsights) onOpenInsights();
+    else window.location.href = "/insights"; // fallback
+  }}
+  aria-label="Open updates and progress"
+  title="Updates & Progress"
+>
+  🔔
+</button>
 
           <button
             type="button"
@@ -83,4 +97,16 @@ const styles = {
     fontWeight: 800,
     cursor: "pointer",
   },
+
+  bell: {
+  marginLeft: 8,
+  padding: "9px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "rgba(255,255,255,0.10)",
+  color: "#f9fafb",
+  fontWeight: 800,
+  cursor: "pointer",
+},
+
 };

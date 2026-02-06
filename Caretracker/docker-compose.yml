@@ -6,6 +6,7 @@ services:
       POSTGRES_USER: caretrack
       POSTGRES_PASSWORD: caretrackpw
       POSTGRES_DB: caretrack
+      TZ: Asia/Singapore
     ports:
       - "5432:5432"
     volumes:
@@ -21,6 +22,7 @@ services:
       DB_USER: caretrack
       DB_PASSWORD: caretrackpw
       DB_NAME: caretrack
+      TZ: Asia/Singapore
     ports:
       - "3000:3000"
     depends_on:
