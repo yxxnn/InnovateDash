@@ -26,8 +26,8 @@ export default function PwidHome() {
       <AppHeader
         appName="CareTrack+"
         userName="Alex"
-        role="PWID"
-        onLogout={() => alert("Mock logout")}
+        role="User"
+        onLogout={() => (window.location.href = "/login")}
       />
 
       {/* Main Content */}

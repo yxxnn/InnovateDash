@@ -1,7 +1,7 @@
 export default function AppHeader({
   appName = "CareTrack+",
   userName = "Alex",
-  role = "PWID",
+  role = "User",
   onLogout,
 }) {
   return (
@@ -16,7 +16,6 @@ export default function AppHeader({
         borderBottom: "1px solid rgba(255,255,255,0.10)",
       }}
     >
-      {/* Inner container keeps it nicely aligned on desktop */}
       <header
         style={{
           maxWidth: 980,
@@ -28,25 +27,16 @@ export default function AppHeader({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
         }}
       >
-        {/* App name */}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: "#f9fafb" }}>
-            {appName}
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 900 }}>{appName}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>
+            Daily Task Support
           </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Daily Task Support</div>
         </div>
 
-        {/* User info */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
             style={{
               width: 36,
@@ -57,14 +47,12 @@ export default function AppHeader({
               placeItems: "center",
               fontWeight: 900,
               color: "#fff",
-              flex: "0 0 auto",
             }}
-            title={`${userName} (${role})`}
           >
-            {userName?.[0]?.toUpperCase?.() || "U"}
+            {userName[0]}
           </div>
 
-          <div style={{ textAlign: "right", lineHeight: 1.1 }}>
+          <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 13, fontWeight: 800 }}>{userName}</div>
             <div style={{ fontSize: 11, opacity: 0.65 }}>{role}</div>
           </div>
@@ -80,7 +68,6 @@ export default function AppHeader({
               border: "1px solid rgba(255,255,255,0.2)",
               color: "#e5e7eb",
               cursor: "pointer",
-              whiteSpace: "nowrap",
             }}
           >
             Logout
