@@ -1,28 +1,58 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TaskCard from "../components/TaskCard";
 import AppHeader from "../components/AppHeader";
+import { getTodayTasks, toggleTaskDone } from "../api";
 
 export default function PwidHome() {
-  const [tasks, setTasks] = useState([
-    { id: 1, title: "Brush Teeth", emoji: "🪥", time: "8:00 AM", done: false },
-    { id: 2, title: "Take Medicine", emoji: "💊", time: "9:00 AM", done: false },
-    { id: 3, title: "Clean Room", emoji: "🧹", time: "6:00 PM", done: false },
-  ]);
+  const userId = "u1"; // MVP: mock logged-in user
 
-  function toggleTask(id) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  async function load() {
+    try {
+      setErr("");
+      setLoading(true);
+      const data = await getTodayTasks(userId);
+      setTasks(data.tasks);
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function onToggle(taskId) {
+    // optimistic UI update
     setTasks((prev) =>
-      prev.map((task) =>
-        task.id === id ? { ...task, done: !task.done } : task
-      )
+      prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
     );
+
+    try {
+      const result = await toggleTaskDone(taskId, userId);
+      // ensure UI matches backend response
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, done: result.done } : t))
+      );
+    } catch (e) {
+      // revert if failed
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+      );
+      alert(e.message || "Failed to update");
+    }
   }
 
   const completed = tasks.filter((t) => t.done).length;
-  const progress = Math.round((completed / tasks.length) * 100);
+  const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
 
   return (
     <>
-      {/* App Header */}
       <AppHeader
         appName="CareTrack+"
         userName="Alex"
@@ -30,9 +60,7 @@ export default function PwidHome() {
         onLogout={() => (window.location.href = "/login")}
       />
 
-      {/* Main Content */}
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: 20 }}>
-        {/* Summary Card */}
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: 20 }}>
         <div
           style={{
             padding: 18,
@@ -79,35 +107,38 @@ export default function PwidHome() {
               style={{
                 height: "100%",
                 width: `${progress}%`,
-                background:
-                  "linear-gradient(90deg, #6366f1, #22c55e)",
+                background: "linear-gradient(90deg, #6366f1, #22c55e)",
               }}
             />
           </div>
         </div>
 
-        {/* Task List */}
-        <div style={{ display: "grid", gap: 12 }}>
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              title={task.title}
-              emoji={task.emoji}
-              time={task.time}
-              done={task.done}
-              onToggle={() => toggleTask(task.id)}
-            />
-          ))}
-        </div>
+        {loading && <p style={{ opacity: 0.7 }}>Loading tasks...</p>}
+        {err && (
+          <div style={{ opacity: 0.8 }}>
+            <p>❌ {err}</p>
+            <button onClick={load} style={{ cursor: "pointer" }}>
+              Retry
+            </button>
+          </div>
+        )}
 
-        {/* Privacy Note */}
-        <p
-          style={{
-            marginTop: 16,
-            fontSize: 13,
-            opacity: 0.6,
-          }}
-        >
+        {!loading && !err && (
+          <div style={{ display: "grid", gap: 12 }}>
+            {tasks.map((t) => (
+              <TaskCard
+                key={t.id}
+                title={t.title}
+                emoji={t.emoji}
+                time={t.time}
+                done={t.done}
+                onToggle={() => onToggle(t.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        <p style={{ marginTop: 16, fontSize: 13, opacity: 0.6 }}>
           Privacy-first design: No camera, audio, or location tracking.
         </p>
       </div>
