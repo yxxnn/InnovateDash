@@ -1,39 +1,52 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function CaregiverLogin() {
+export default function CaregiverSignup() {
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/caregiver/login", {
+      const response = await fetch("http://localhost:3000/caregiver/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Login failed. Please try again.");
+        setError(data.message || "Signup failed. Please try again.");
         return;
       }
 
-      // Successful login
-      localStorage.setItem("caregiverToken", data.token);
-      if (rememberMe) {
-        localStorage.setItem("rememberDevice", "true");
-      }
-      navigate("/caregiver");
+      // Successful signup
+      setSuccess("Account created successfully! Redirecting to login...");
+      setTimeout(() => {
+        navigate("/login/caregiver");
+      }, 2000);
     } catch (err) {
       setError("Connection error. Please try again.");
       console.error(err);
@@ -45,7 +58,7 @@ export default function CaregiverLogin() {
   return (
     <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 md:px-12 border-b border-zinc-200/60 dark:border-zinc-800 bg-white/50 dark:bg-black/20 backdrop-blur-sm">
+      <header className="flex items-center justify-between px-6 py-4 md:px-12 border-b border-zinc-200/60 bg-white/50 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="bg-[#19e619] p-1.5 rounded text-white">
             <span className="material-symbols-outlined block text-2xl">
@@ -80,14 +93,14 @@ export default function CaregiverLogin() {
             <div className="mb-8 text-center">
               <div className="inline-flex items-center justify-center p-3 bg-[#e7f3e7] rounded-full mb-4">
                 <span className="material-symbols-outlined text-[#19e619] text-3xl">
-                  admin_panel_settings
+                  person_add
                 </span>
               </div>
               <h1 className="text-zinc-900 text-2xl font-bold">
-                Caregiver Portal
+                Create Your Account
               </h1>
               <p className="text-zinc-500 text-sm mt-2">
-                Professional login for routine management and support.
+                Professional caregiver registration for task management.
               </p>
             </div>
 
@@ -98,8 +111,42 @@ export default function CaregiverLogin() {
               </div>
             )}
 
-            {/* Login Form */}
+            {/* Success Message */}
+            {success && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-700">{success}</p>
+              </div>
+            )}
+
+            {/* Signup Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Name Field */}
+              <div>
+                <label
+                  className="block text-zinc-700 text-sm font-semibold mb-2"
+                  htmlFor="name"
+                >
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <span className="material-symbols-outlined text-zinc-400 text-xl">
+                      person
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your full name"
+                    required
+                    className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
               {/* Email Field */}
               <div>
                 <label
@@ -130,20 +177,12 @@ export default function CaregiverLogin() {
 
               {/* Password Field */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label
-                    className="block text-zinc-700 text-sm font-semibold"
-                    htmlFor="password"
-                  >
-                    Password
-                  </label>
-                  <a
-                    className="text-xs font-semibold text-[#19e619] hover:underline"
-                    href="#"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
+                <label
+                  className="block text-zinc-700 text-sm font-semibold mb-2"
+                  htmlFor="password"
+                >
+                  Password
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <span className="material-symbols-outlined text-zinc-400 text-xl">
@@ -158,38 +197,50 @@ export default function CaregiverLogin() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Remember Device Checkbox */}
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="remember-me"
-                  name="remember-me"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-zinc-300 text-[#19e619] focus:ring-[#19e619]"
-                />
+              {/* Confirm Password Field */}
+              <div>
                 <label
-                  className="ml-2 block text-sm text-zinc-600"
-                  htmlFor="remember-me"
+                  className="block text-zinc-700 text-sm font-semibold mb-2"
+                  htmlFor="confirmPassword"
                 >
-                  Remember this device
+                  Confirm Password
                 </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <span className="material-symbols-outlined text-zinc-400 text-xl">
+                      lock_check
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    autoComplete="new-password"
+                    className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
+                  />
+                </div>
               </div>
 
-              {/* Login Button */}
+              {/* Signup Button */}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-[#19e619] hover:bg-[#15c213] disabled:bg-zinc-400 text-zinc-900 text-sm font-bold py-3.5 rounded-lg transition-all transform active:scale-[0.99] shadow-md shadow-[#19e619]/10 flex items-center justify-center gap-2"
               >
-                <span>{loading ? "Logging in..." : "Secure Login"}</span>
-                <span className="material-symbols-outlined text-xl">login</span>
+                <span>{loading ? "Creating account..." : "Create Account"}</span>
+                <span className="material-symbols-outlined text-xl">
+                  person_add
+                </span>
               </button>
             </form>
 
@@ -202,24 +253,15 @@ export default function CaregiverLogin() {
             </div>
           </div>
 
-          {/* Switch to User Login */}
-          <div className="mt-6 text-center space-y-3">
+          {/* Back to Login */}
+          <div className="mt-6 text-center">
             <p className="text-sm text-zinc-500">
-              Don't have an account?{" "}
+              Already have an account?{" "}
               <button
-                onClick={() => navigate("/caregiver/signup")}
+                onClick={() => navigate("/login/caregiver")}
                 className="text-[#19e619] font-bold hover:underline"
               >
-                Create an account
-              </button>
-            </p>
-            <p className="text-sm text-zinc-500">
-              Are you a companion user?{" "}
-              <button
-                onClick={() => navigate("/?switchToUser=true")}
-                className="text-[#19e619] font-bold hover:underline"
-              >
-                Switch to User Login
+                Sign in
               </button>
             </p>
           </div>

@@ -123,6 +123,73 @@ app.post("/caregiver/login", async (req, res) => {
   }
 });
 
+/* ------------ USER SIGNUP ------------ */
+app.post("/user/signup", async (req, res) => {
+  try {
+    const { name, code } = req.body;
+    
+    if (!name || !code) {
+      return res.status(400).json({ message: "Name and code required" });
+    }
+
+    const userId = "u_" + Math.random().toString(16).slice(2);
+
+    await pool.query(
+      `INSERT INTO users VALUES ($1, $2, $3)`,
+      [userId, name, "User"]
+    );
+
+    res.status(201).json({
+      userId,
+      name,
+      message: "User account created successfully"
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ------------ CAREGIVER SIGNUP ------------ */
+app.post("/caregiver/signup", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email, and password required" });
+    }
+
+    // Check if email already exists
+    const existing = await pool.query(
+      `SELECT id FROM caregivers WHERE email=$1`,
+      [email]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    const caregiverId = "cg_" + Math.random().toString(16).slice(2);
+
+    await pool.query(
+      `INSERT INTO caregivers VALUES ($1, $2, $3, $4, $5)`,
+      [caregiverId, name, email, password, new Date().toISOString()]
+    );
+
+    // Generate token
+    const token = "caregiver_" + Math.random().toString(16).slice(2);
+
+    res.status(201).json({
+      token,
+      caregiverId,
+      name,
+      email,
+      message: "Caregiver account created successfully"
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ---------------- DB INIT ---------------- */
 app.get("/db/init", async (req, res) => {
   try {

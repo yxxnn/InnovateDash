@@ -21,8 +21,8 @@ export default function Login() {
     navigate(`/login/code?role=${role}`);
   };
 
-  const handleHelp = () => {
-    navigate("/help");
+  const handleSignup = () => {
+    navigate("/signup");
   };
 
   return (
@@ -96,17 +96,17 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Help Button */}
-        <div className="mt-4">
-          <button
-            onClick={handleHelp}
-            className="group inline-flex items-center gap-3 text-[#666] hover:text-[#19e619] transition-colors py-3 px-6 rounded-full bg-white shadow-md border-2 border-transparent hover:border-[#19e619]"
-          >
-            <span className="material-symbols-outlined text-2xl">
-              support_agent
-            </span>
-            <span className="text-lg font-bold">I need help signing in</span>
-          </button>
+        {/* Create Account Button */}
+        <div className="mt-6 text-center space-y-3">
+          <p className="text-sm text-[#666]">
+            Don't have an account?{" "}
+            <button
+              onClick={handleSignup}
+              className="text-[#19e619] font-bold hover:underline"
+            >
+              Create an account
+            </button>
+          </p>
         </div>
       </main>
 
