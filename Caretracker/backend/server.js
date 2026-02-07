@@ -90,6 +90,39 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+/* ------------ CAREGIVER LOGIN ------------ */
+app.post("/caregiver/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const query = await pool.query(
+      `SELECT id, name FROM caregivers WHERE email=$1 AND password=$2`,
+      [email, password]
+    );
+
+    if (query.rows.length === 0) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const caregiver = query.rows[0];
+    // Generate a simple token (in production, use JWT)
+    const token = "caregiver_" + Math.random().toString(16).slice(2);
+
+    res.json({
+      token,
+      caregiverId: caregiver.id,
+      name: caregiver.name,
+      email
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ---------------- DB INIT ---------------- */
 app.get("/db/init", async (req, res) => {
   try {
@@ -98,6 +131,14 @@ app.get("/db/init", async (req, res) => {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         role TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS caregivers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        created_at_iso TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS tasks (
@@ -154,6 +195,15 @@ app.get("/db/init", async (req, res) => {
         ('t2','u1','Brush Teeth','🪥','8:00 AM',false),
         ('t3','u1','Clean Room','🧹','6:00 PM',false);
       `);
+    }
+
+    // Seed caregiver test account
+    const caregiverCount = await pool.query(`SELECT COUNT(*)::int AS c FROM caregivers`);
+    if (caregiverCount.rows[0].c === 0) {
+      await pool.query(`
+        INSERT INTO caregivers VALUES
+        ('cg1','Admin Test','admin@123','12345',$1);
+      `, [new Date().toISOString()]);
     }
 
     res.json({ ok: true });
