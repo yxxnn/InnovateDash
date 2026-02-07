@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BASE } from "../api";
 
 export default function UserLogin() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function UserLogin() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/user/login", {
+      const response = await fetch(`${BASE}/user/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

@@ -1,5 +1,7 @@
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
+export { BASE };
+
 export const getCaregiverOverview = () =>
   fetch(`${BASE}/caregiver/overview`).then((r) => r.json());
 

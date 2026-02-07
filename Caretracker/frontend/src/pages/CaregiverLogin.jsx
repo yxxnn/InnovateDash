@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BASE } from "../api";
 
 export default function CaregiverLogin() {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ export default function CaregiverLogin() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/caregiver/login", {
+      const response = await fetch(`${BASE}/caregiver/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

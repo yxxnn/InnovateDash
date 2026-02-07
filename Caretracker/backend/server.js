@@ -325,6 +325,19 @@ app.get("/db/init", async (req, res) => {
       `, [now]);
     }
 
+    // Seed sample tasks for user u1
+    const taskCount = await pool.query(`SELECT COUNT(*)::int AS c FROM tasks`);
+    if (taskCount.rows[0].c === 0) {
+      await pool.query(`
+        INSERT INTO tasks (id, user_id, title, emoji, time, is_critical) VALUES
+        ('t1','u1','Wash Face','🧼','07:00',false),
+        ('t2','u1','Brush Teeth','🪥','07:15',true),
+        ('t3','u1','Take Vitamin','💊','07:30',true),
+        ('t4','u1','Get Dressed','👕','07:45',false),
+        ('t5','u1','Clean Room','🧹','08:00',false);
+      `);
+    }
+
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
