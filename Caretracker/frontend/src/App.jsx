@@ -8,6 +8,8 @@ import UserLogin from "./pages/UserLogin";
 import FaceLogin from "./pages/FaceLogin";
 import UserSignup from "./pages/UserSignup";
 import CaregiverSignup from "./pages/CaregiverSignup";
+import CaregiverProfile from "./pages/CaregiverProfile";
+import UserProfile from "./pages/UserProfile";
 import Insights from "./pages/Insights";
 import Streaks from "./pages/Streaks";
 import UserTasks from "./pages/UserTasks";
@@ -23,6 +25,8 @@ export default function App() {
       <Route path="/login/code" element={<UserLogin />} />
       <Route path="/signup" element={<UserSignup />} />
       <Route path="/caregiver/signup" element={<CaregiverSignup />} />
+      <Route path="/caregiver/profile" element={<CaregiverProfile />} />
+      <Route path="/profile" element={<UserProfile />} />
       <Route path="/pwid" element={<PwidHome />} />
       <Route path="/user-tasks" element={<UserTasks />} />
       <Route path="/streaks" element={<Streaks />} />

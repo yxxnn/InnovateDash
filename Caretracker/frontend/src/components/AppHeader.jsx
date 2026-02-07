@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function AppHeader({
   appName = "CareTrack+",
   subtitle = "Daily Task Support",
@@ -5,7 +7,18 @@ export default function AppHeader({
   role = "User",
   onLogout,
   onOpenInsights,
+  profileHref,
 }) {
+  const profileBlock = (
+    <>
+      <div style={styles.avatar}>{(userName || "U")[0].toUpperCase()}</div>
+      <div style={{ lineHeight: 1.1 }}>
+        <div style={styles.name}>{userName}</div>
+        <div style={styles.role}>{role}</div>
+      </div>
+    </>
+  );
+
   return (
     <div style={styles.wrap}>
       <div style={styles.bar}>
@@ -15,11 +28,13 @@ export default function AppHeader({
         </div>
 
         <div style={styles.right}>
-          <div style={styles.avatar}>{(userName || "U")[0].toUpperCase()}</div>
-          <div style={{ lineHeight: 1.1 }}>
-            <div style={styles.name}>{userName}</div>
-            <div style={styles.role}>{role}</div>
-          </div>
+          {profileHref ? (
+            <Link to={profileHref} style={styles.profileLink} title="View profile" aria-label="View profile">
+              {profileBlock}
+            </Link>
+          ) : (
+            profileBlock
+          )}
 
           <button
   type="button"
@@ -74,6 +89,14 @@ const styles = {
   sub: { opacity: 0.75, fontSize: 13, marginTop: 2 },
 
   right: { display: "flex", alignItems: "center", gap: 10 },
+  profileLink: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "inherit",
+    textDecoration: "none",
+    cursor: "pointer",
+  },
   avatar: {
     width: 36,
     height: 36,

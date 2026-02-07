@@ -28,9 +28,10 @@ export default function UserLogin() {
         return;
       }
 
-      // Successful login
+      // Successful login – store for header and profile page
       localStorage.setItem("userToken", data.token);
       localStorage.setItem("userId", data.userId);
+      localStorage.setItem("userEmail", data.email ?? "");
       navigate("/pwid");
     } catch (err) {
       setError("Connection error. Please try again.");

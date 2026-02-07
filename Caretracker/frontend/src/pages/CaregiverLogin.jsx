@@ -29,8 +29,11 @@ export default function CaregiverLogin() {
         return;
       }
 
-      // Successful login
+      // Successful login – store profile for header and profile page
       localStorage.setItem("caregiverToken", data.token);
+      localStorage.setItem("caregiverId", data.caregiverId ?? "");
+      localStorage.setItem("caregiverName", data.name ?? "Caregiver");
+      localStorage.setItem("caregiverEmail", data.email ?? "");
       if (rememberMe) {
         localStorage.setItem("rememberDevice", "true");
       }

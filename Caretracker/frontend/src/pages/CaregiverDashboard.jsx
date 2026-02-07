@@ -78,9 +78,10 @@ export default function CaregiverDashboard() {
       <AppHeader
         appName="CareTrack+"
         subtitle="Daily Task Support"
-        userName="Grace"
+        userName={typeof window !== "undefined" ? (localStorage.getItem("caregiverName") || "Caregiver") : "Caregiver"}
         role="Caregiver"
         onLogout={() => (window.location.href = "/login")}
+        profileHref="/caregiver/profile"
       />
 
       <div style={styles.container}>

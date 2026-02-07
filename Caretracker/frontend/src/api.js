@@ -29,7 +29,27 @@ async function jsonOrThrow(res) {
 export const getCaregiverOverview = () =>
   fetch(`${BASE}/caregiver/overview`).then(jsonOrThrow);
 
+export const getCaregiverProfile = (caregiverId) =>
+  fetch(`${BASE}/caregiver/profile?caregiverId=${encodeURIComponent(caregiverId)}`).then(jsonOrThrow);
+
+export const updateCaregiverProfile = (caregiverId, payload) =>
+  fetch(`${BASE}/caregiver/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ caregiverId, ...payload }),
+  }).then(jsonOrThrow);
+
 /* ================= USER TASKS ================= */
+
+export const getUserProfile = (userId) =>
+  fetch(`${BASE}/user/profile?userId=${encodeURIComponent(userId)}`).then(jsonOrThrow);
+
+export const updateUserProfile = (userId, payload) =>
+  fetch(`${BASE}/user/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, ...payload }),
+  }).then(jsonOrThrow);
 
 export const getTodayTasks = (userId) =>
   fetch(`${BASE}/tasks/today?userId=${encodeURIComponent(userId)}`)

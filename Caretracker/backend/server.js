@@ -232,6 +232,60 @@ app.post("/user/login", async (req, res) => {
   }
 });
 
+/* ------------ USER PROFILE ------------ */
+app.get("/user/profile", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ message: "userId required" });
+    }
+    const q = await pool.query(
+      `SELECT id, email, role, created_at_iso FROM users WHERE id=$1`,
+      [userId]
+    );
+    if (q.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const row = q.rows[0];
+    res.json({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      createdAt: row.created_at_iso,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch("/user/profile", async (req, res) => {
+  try {
+    const { userId, email } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: "userId required" });
+    }
+    if (email !== undefined && email !== "") {
+      await pool.query(`UPDATE users SET email=$1 WHERE id=$2`, [email, userId]);
+    }
+    const q = await pool.query(
+      `SELECT id, email, role, created_at_iso FROM users WHERE id=$1`,
+      [userId]
+    );
+    if (q.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const row = q.rows[0];
+    res.json({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      createdAt: row.created_at_iso,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ------------ CAREGIVER SIGNUP ------------ */
 app.post("/caregiver/signup", async (req, res) => {
   try {
@@ -266,6 +320,63 @@ app.post("/caregiver/signup", async (req, res) => {
       name,
       email,
       message: "Caregiver account created successfully",
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---------------- CAREGIVER PROFILE ---------------- */
+app.get("/caregiver/profile", async (req, res) => {
+  try {
+    const { caregiverId } = req.query;
+    if (!caregiverId) {
+      return res.status(400).json({ message: "caregiverId required" });
+    }
+    const q = await pool.query(
+      `SELECT id, name, email, created_at_iso FROM caregivers WHERE id=$1`,
+      [caregiverId]
+    );
+    if (q.rows.length === 0) {
+      return res.status(404).json({ message: "Caregiver not found" });
+    }
+    const row = q.rows[0];
+    res.json({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      createdAt: row.created_at_iso,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch("/caregiver/profile", async (req, res) => {
+  try {
+    const { caregiverId, name, email } = req.body;
+    if (!caregiverId) {
+      return res.status(400).json({ message: "caregiverId required" });
+    }
+    if (name !== undefined) {
+      await pool.query(`UPDATE caregivers SET name=$1 WHERE id=$2`, [name, caregiverId]);
+    }
+    if (email !== undefined && email !== "") {
+      await pool.query(`UPDATE caregivers SET email=$1 WHERE id=$2`, [email, caregiverId]);
+    }
+    const q = await pool.query(
+      `SELECT id, name, email, created_at_iso FROM caregivers WHERE id=$1`,
+      [caregiverId]
+    );
+    if (q.rows.length === 0) {
+      return res.status(404).json({ message: "Caregiver not found" });
+    }
+    const row = q.rows[0];
+    res.json({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      createdAt: row.created_at_iso,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

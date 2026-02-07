@@ -96,6 +96,9 @@ export default function PwidHome() {
   const completed = tasks.filter((t) => t.done).length;
   const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
 
+  const userEmail = localStorage.getItem("userEmail") || "";
+  const userDisplayName = userEmail ? userEmail.split("@")[0] : "User";
+
   // Find the first undone task index (this is the "current" task)
   const currentIndex = tasks.findIndex((t) => !t.done);
 
@@ -114,15 +117,19 @@ export default function PwidHome() {
         <aside className="hidden md:flex w-60 bg-white border-r border-slate-200 flex-col justify-between p-4">
           <div className="space-y-6">
             {/* Profile Section */}
-            <div className="flex items-center gap-3 p-2">
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-all text-left"
+            >
               <div className="w-11 h-11 rounded-full bg-[#19e619]/20 flex items-center justify-center overflow-hidden border-2 border-[#19e619]">
                 <span className="material-symbols-outlined text-[#19e619] text-2xl">person</span>
               </div>
               <div>
-                <h2 className="text-base font-bold leading-tight">Hi, User!</h2>
+                <h2 className="text-base font-bold leading-tight">Hi, {userDisplayName}!</h2>
                 <p className="text-xs text-slate-500">Ready for today?</p>
               </div>
-            </div>
+            </button>
 
             {/* Nav Links */}
             <nav className="space-y-2">
@@ -148,12 +155,22 @@ export default function PwidHome() {
                 <span className="material-symbols-outlined text-2xl text-slate-600">help</span>
                 <span className="text-base font-medium">Help</span>
               </button>
+              <button
+                onClick={() => navigate("/profile")}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all"
+              >
+                <span className="material-symbols-outlined text-2xl text-slate-600">person</span>
+                <span className="text-base font-medium">Profile</span>
+              </button>
             </nav>
           </div>
 
           {/* Settings */}
           <div className="pt-4 border-t border-slate-100">
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all">
+            <button
+              onClick={() => navigate("/profile")}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all"
+            >
               <span className="material-symbols-outlined text-xl text-slate-500">settings</span>
               <span className="text-sm font-medium">Settings</span>
             </button>
@@ -164,12 +181,16 @@ export default function PwidHome() {
         <main className="flex-1 overflow-y-auto bg-[#f6f8f6] p-3 md:p-6">
           {/* Mobile Header */}
           <div className="md:hidden flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              className="flex items-center gap-2"
+            >
               <div className="w-9 h-9 rounded-full bg-[#19e619]/20 flex items-center justify-center border-2 border-[#19e619]">
                 <span className="material-symbols-outlined text-[#19e619] text-lg">person</span>
               </div>
-              <h2 className="text-base font-bold">Hi, User!</h2>
-            </div>
+              <h2 className="text-base font-bold">Hi, {userDisplayName}!</h2>
+            </button>
             <button
               onClick={() => navigate("/user-tasks")}
               className="px-3 py-1.5 text-xs font-semibold bg-[#19e619] text-white rounded-lg hover:bg-[#15c213] transition-colors"
