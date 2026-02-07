@@ -90,7 +90,7 @@ export default function Login() {
               </span>
             </div>
             <span className="text-2xl font-bold text-[#0e1b0e]">
-              Name and Code
+              Email & Password
             </span>
             <p className="mt-3 text-[#999] text-base">Type your details</p>
           </button>

@@ -76,7 +76,7 @@ export default function UserLogin() {
                 User Login
               </h1>
               <p className="text-zinc-500 text-sm mt-2">
-                Enter your name and code to continue.
+                Enter your email and password to continue.
               </p>
             </div>
 

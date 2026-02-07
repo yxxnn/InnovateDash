@@ -303,36 +303,26 @@ app.get("/db/init", async (req, res) => {
       );
     `);
 
-    await pool.query(`
-    INSERT INTO notification_prefs (user_id) VALUES ('u1')
-    ON CONFLICT (user_id) DO NOTHING;
-   `);
-
-
+    // Seed users
     const count = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
     if (count.rows[0].c === 0) {
       const now = new Date().toISOString();
       await pool.query(`
         INSERT INTO users VALUES
-        ('u1','alex@example.com','123456','User',$1),
-        ('u2','bob@example.com','password','User',$1);
+        ('u1','user1@123','123456','User',$1),
+        ('u2','user2@123','123456','User',$1);
       `, [now]);
-
-      await pool.query(`
-        INSERT INTO tasks VALUES
-        ('t1','u1','Take Medicine','💊','9:00 AM',true),
-        ('t2','u1','Brush Teeth','🪥','8:00 AM',false),
-        ('t3','u1','Clean Room','🧹','6:00 PM',false);
-      `);
     }
 
-    // Seed caregiver test account
+    // Seed caregivers
     const caregiverCount = await pool.query(`SELECT COUNT(*)::int AS c FROM caregivers`);
     if (caregiverCount.rows[0].c === 0) {
+      const now = new Date().toISOString();
       await pool.query(`
         INSERT INTO caregivers VALUES
-        ('cg1','Admin Test','admin@123','12345',$1);
-      `, [new Date().toISOString()]);
+        ('cg1','Admin','admin@123','123456',$1),
+        ('cg2','Admin 1','admin1@123','123456',$1);
+      `, [now]);
     }
 
     res.json({ ok: true });

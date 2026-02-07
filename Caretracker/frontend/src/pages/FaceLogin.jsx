@@ -249,7 +249,7 @@ export default function FaceLogin() {
                 onClick={() => navigate("/login/code?role=user")}
                 className="text-[#19e619] font-bold hover:underline"
               >
-                Use name and code instead
+                Use email and password instead
               </button>
             </p>
             <p className="text-sm text-zinc-500">
