@@ -126,23 +126,65 @@ app.post("/caregiver/login", async (req, res) => {
 /* ------------ USER SIGNUP ------------ */
 app.post("/user/signup", async (req, res) => {
   try {
-    const { name, code } = req.body;
+    const { email, password } = req.body;
     
-    if (!name || !code) {
-      return res.status(400).json({ message: "Name and code required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    // Check if email already exists
+    const existing = await pool.query(
+      `SELECT id FROM users WHERE email=$1`,
+      [email]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ message: "Email already registered" });
     }
 
     const userId = "u_" + Math.random().toString(16).slice(2);
 
     await pool.query(
-      `INSERT INTO users VALUES ($1, $2, $3)`,
-      [userId, name, "User"]
+      `INSERT INTO users VALUES ($1, $2, $3, $4, $5)`,
+      [userId, email, password, "User", new Date().toISOString()]
     );
 
     res.status(201).json({
       userId,
-      name,
+      email,
       message: "User account created successfully"
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ------------ USER LOGIN ------------ */
+app.post("/user/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const query = await pool.query(
+      `SELECT id FROM users WHERE email=$1 AND password=$2 AND role=$3`,
+      [email, password, "User"]
+    );
+
+    if (query.rows.length === 0) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const userId = query.rows[0].id;
+    const token = "user_" + Math.random().toString(16).slice(2);
+
+    res.json({
+      token,
+      userId,
+      email,
+      message: "Login successful"
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -193,13 +235,19 @@ app.post("/caregiver/signup", async (req, res) => {
 /* ---------------- DB INIT ---------------- */
 app.get("/db/init", async (req, res) => {
   try {
+    // Create users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at_iso TEXT NOT NULL
       );
+    `);
 
+    // Create caregivers table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS caregivers (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -207,7 +255,10 @@ app.get("/db/init", async (req, res) => {
         password TEXT NOT NULL,
         created_at_iso TEXT NOT NULL
       );
+    `);
 
+    // Create tasks table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -216,7 +267,10 @@ app.get("/db/init", async (req, res) => {
         time TEXT NOT NULL,
         is_critical BOOLEAN DEFAULT FALSE
       );
+    `);
 
+    // Create task_logs table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS task_logs (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
@@ -224,24 +278,29 @@ app.get("/db/init", async (req, res) => {
         date_iso TEXT NOT NULL,
         done_at_iso TEXT NOT NULL
       );
+    `);
 
+    // Create notification_prefs table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS notification_prefs (
       user_id TEXT PRIMARY KEY,
-      quiet_start TEXT DEFAULT '22:00',   -- HH:MM
-      quiet_end   TEXT DEFAULT '07:00',   -- HH:MM
-      followup_minutes INT DEFAULT 15     -- send follow-up if still not done
+      quiet_start TEXT DEFAULT '22:00',
+      quiet_end   TEXT DEFAULT '07:00',
+      followup_minutes INT DEFAULT 15
       );
+    `);
 
+    // Create notifications table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       task_id TEXT,
-      type TEXT NOT NULL,                -- 'REMINDER' | 'FOLLOW_UP' | 'SUMMARY'
+      type TEXT NOT NULL,
       message TEXT NOT NULL,
       created_at_iso TEXT NOT NULL,
       read BOOLEAN DEFAULT FALSE
       );
-
     `);
 
     await pool.query(`
@@ -252,11 +311,14 @@ app.get("/db/init", async (req, res) => {
 
     const count = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
     if (count.rows[0].c === 0) {
+      const now = new Date().toISOString();
       await pool.query(`
         INSERT INTO users VALUES
-        ('u1','Alex','User'),
-        ('c1','Grace','Caregiver');
+        ('u1','alex@example.com','123456','User',$1),
+        ('u2','bob@example.com','password','User',$1);
+      `, [now]);
 
+      await pool.query(`
         INSERT INTO tasks VALUES
         ('t1','u1','Take Medicine','💊','9:00 AM',true),
         ('t2','u1','Brush Teeth','🪥','8:00 AM',false),

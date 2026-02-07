@@ -33,3 +33,13 @@ a {
 button {
   font: inherit;
 }
+
+/* Hide scrollbar for all browsers while maintaining scroll functionality */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}

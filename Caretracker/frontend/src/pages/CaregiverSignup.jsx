@@ -56,10 +56,10 @@ export default function CaregiverSignup() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-[#f0f9f0]" style={{ backgroundColor: "#f0f9f0" }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 md:px-12 border-b border-zinc-200/60 bg-white/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 bg-[#f0f9f0]" style={{ backgroundColor: "#f0f9f0" }}>
+        <button onClick={() => navigate("/")} className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
           <div className="bg-[#19e619] p-1.5 rounded text-white">
             <span className="material-symbols-outlined block text-2xl">
               diversity_1
@@ -68,25 +68,17 @@ export default function CaregiverSignup() {
           <h2 className="text-[#0e1b0e] text-xl font-bold tracking-tight">
             Companion
           </h2>
-        </div>
-        <div className="flex items-center gap-6">
-          <a
-            className="text-sm font-medium text-zinc-600 hover:text-[#19e619] transition-colors"
-            href="#"
-          >
-            Help Center
-          </a>
-          <a
-            className="text-sm font-medium text-zinc-600 hover:text-[#19e619] transition-colors"
-            href="#"
-          >
-            Security Standards
-          </a>
+        </button>
+        <div className="flex items-center gap-4">
+          <button className="flex items-center gap-2 bg-white border-2 border-[#19e619]/20 px-4 py-1.5 rounded-full font-bold text-[#444] hover:bg-gray-50 transition-colors shadow-sm text-sm">
+            <span className="material-symbols-outlined text-lg">help</span>
+            How it works
+          </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-4 py-16">
+      <main className="flex-1 flex items-center justify-center px-4 py-16 pt-28">
         <div className="w-full max-w-[440px]">
           <div className="bg-white shadow-xl shadow-black/5 rounded-xl border border-zinc-200 p-8 md:p-10">
             {/* Form Header */}

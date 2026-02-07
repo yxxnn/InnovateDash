@@ -14,11 +14,11 @@ export default function Login() {
   }, [role, navigate]);
 
   const handleFaceLogin = () => {
-    navigate(`/login/face?role=${role}`);
+    navigate(`/login/face`);
   };
 
   const handleCodeLogin = () => {
-    navigate(`/login/code?role=${role}`);
+    navigate(`/login/code`);
   };
 
   const handleSignup = () => {
@@ -27,12 +27,12 @@ export default function Login() {
 
   return (
     <div
-      className="relative w-full min-h-screen flex flex-col bg-[#f0f9f0] transition-colors duration-300"
+      className="relative w-full min-h-screen flex flex-col bg-[#f0f9f0] transition-colors duration-300 overflow-x-hidden"
       style={{ backgroundColor: "#f0f9f0" }}
     >
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 md:px-12 flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 bg-[#f0f9f0]" style={{ backgroundColor: "#f0f9f0" }}>
+        <button onClick={() => navigate("/")} className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
           <div className="bg-[#19e619] p-1.5 rounded-lg text-white">
             <span className="material-symbols-outlined block text-2xl">
               diversity_1
@@ -41,7 +41,7 @@ export default function Login() {
           <h2 className="text-[#0e1b0e] text-xl font-bold tracking-tight">
             Companion
           </h2>
-        </div>
+        </button>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-2 bg-white border-2 border-[#19e619]/20 px-4 py-1.5 rounded-full font-bold text-[#444] hover:bg-gray-50 transition-colors shadow-sm text-sm">
             <span className="material-symbols-outlined text-lg">help</span>
@@ -51,7 +51,7 @@ export default function Login() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 pt-24">
         <div className="w-full max-w-3xl text-center mb-8">
           <h1 className="text-[#0e1b0e] text-3xl md:text-4xl font-bold leading-tight mb-3">
             Hello! How do you want to sign in?
@@ -109,15 +109,6 @@ export default function Login() {
           </p>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="py-6 px-6 flex justify-center opacity-40 select-none flex-shrink-0">
-        <div className="flex gap-4">
-          <div className="size-3 bg-[#19e619] rounded-full"></div>
-          <div className="size-3 bg-[#19e619]/60 rounded-full"></div>
-          <div className="size-3 bg-[#19e619]/30 rounded-full"></div>
-        </div>
-      </footer>
 
       {/* Background Blurs */}
       <div className="absolute -z-10 top-20 -left-20 size-80 bg-[#19e619]/5 rounded-full blur-3xl pointer-events-none"></div>

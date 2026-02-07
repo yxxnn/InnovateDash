@@ -1,34 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function UserSignup() {
+export default function UserLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/user/signup", {
+      const response = await fetch("http://localhost:3000/user/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -37,15 +23,14 @@ export default function UserSignup() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Signup failed. Please try again.");
+        setError(data.message || "Login failed. Please try again.");
         return;
       }
 
-      // Successful signup
-      setSuccess("Account created successfully! Redirecting to login...");
-      setTimeout(() => {
-        navigate("/login?role=user");
-      }, 2000);
+      // Successful login
+      localStorage.setItem("userToken", data.token);
+      localStorage.setItem("userId", data.userId);
+      navigate("/pwid");
     } catch (err) {
       setError("Connection error. Please try again.");
       console.error(err);
@@ -84,14 +69,14 @@ export default function UserSignup() {
             <div className="mb-8 text-center">
               <div className="inline-flex items-center justify-center p-3 bg-[#e7f3e7] rounded-full mb-4">
                 <span className="material-symbols-outlined text-[#19e619] text-3xl">
-                  person_add
+                  person
                 </span>
               </div>
               <h1 className="text-zinc-900 text-2xl font-bold">
-                Create Your Account
+                User Login
               </h1>
               <p className="text-zinc-500 text-sm mt-2">
-                Join Companion and start managing your daily tasks.
+                Enter your name and code to continue.
               </p>
             </div>
 
@@ -102,14 +87,7 @@ export default function UserSignup() {
               </div>
             )}
 
-            {/* Success Message */}
-            {success && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-700">{success}</p>
-              </div>
-            )}
-
-            {/* Signup Form */}
+            {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Field */}
               <div>
@@ -161,71 +139,49 @@ export default function UserSignup() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                     className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Confirm Password Field */}
-              <div>
-                <label
-                  className="block text-zinc-700 text-sm font-semibold mb-2"
-                  htmlFor="confirmPassword"
-                >
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <span className="material-symbols-outlined text-zinc-400 text-xl">
-                      lock_check
-                    </span>
-                  </div>
-                  <input
-                    type="password"
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    autoComplete="new-password"
-                    className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Signup Button */}
+              {/* Login Button */}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-[#19e619] hover:bg-[#15c213] disabled:bg-zinc-400 text-zinc-900 text-sm font-bold py-3.5 rounded-lg transition-all transform active:scale-[0.99] shadow-md shadow-[#19e619]/10 flex items-center justify-center gap-2"
               >
-                <span>{loading ? "Creating account..." : "Create Account"}</span>
-                <span className="material-symbols-outlined text-xl">
-                  person_add
-                </span>
+                <span>{loading ? "Logging in..." : "Login"}</span>
+                <span className="material-symbols-outlined text-xl">login</span>
               </button>
             </form>
 
-            {/* Info Message */}
+            {/* Security Message */}
             <div className="mt-8 pt-6 border-t border-zinc-100 text-center">
               <p className="text-xs text-zinc-400 flex items-center justify-center gap-1.5">
                 <span className="material-symbols-outlined text-sm">shield</span>
-                Your privacy and security matter to us
+                Your data is secure and private
               </p>
             </div>
           </div>
 
-          {/* Back to Login */}
-          <div className="mt-6 text-center">
+          {/* Account Links */}
+          <div className="mt-6 text-center space-y-3">
             <p className="text-sm text-zinc-500">
-              Already have an account?{" "}
+              Don't have an account?{" "}
+              <button
+                onClick={() => navigate("/signup")}
+                className="text-[#19e619] font-bold hover:underline"
+              >
+                Create an account
+              </button>
+            </p>
+            <p className="text-sm text-zinc-500">
               <button
                 onClick={() => navigate("/login?role=user")}
                 className="text-[#19e619] font-bold hover:underline"
               >
-                Sign in
+                Back to sign in options
               </button>
             </p>
           </div>

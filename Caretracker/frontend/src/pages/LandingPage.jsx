@@ -12,7 +12,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col bg-[#f6f8f6] dark:bg-[#112111] transition-colors duration-300" style={{ backgroundColor: "#f6f8f6" }}>
+    <div className="relative w-full h-screen flex flex-col bg-[#f6f8f6] dark:bg-[#112111] transition-colors duration-300 overflow-hidden" style={{ backgroundColor: "#f6f8f6" }}>
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 md:px-12 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -99,13 +99,6 @@ export default function LandingPage() {
         <p className="text-[#999] text-xs md:text-sm font-medium">
           Privacy-first • Secure • Simple
         </p>
-        <div className="mt-3 flex justify-center opacity-50 select-none">
-          <div className="flex gap-2">
-            <div className="size-2 bg-[#19e619]/40 rounded-full"></div>
-            <div className="size-2 bg-[#19e619]/20 rounded-full"></div>
-            <div className="size-2 bg-[#19e619]/10 rounded-full"></div>
-          </div>
-        </div>
       </footer>
 
       {/* Background Blurs */}
