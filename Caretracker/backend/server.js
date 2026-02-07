@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
 import { pool } from "./db.js";
 
 const app = express();
@@ -8,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+/* ---------------- TIME HELPERS ---------------- */
 function todayKey() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Singapore",
@@ -16,21 +19,16 @@ function todayKey() {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const y = parts.find(p => p.type === "year")?.value;
-  const m = parts.find(p => p.type === "month")?.value;
-  const d = parts.find(p => p.type === "day")?.value;
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
   return `${y}-${m}-${d}`; // YYYY-MM-DD
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
 
-/* =====================================================
-   FEATURE : NOTIFICATION HELPER FUNCTIONS
-   -----------------------------------------------------
-   Utility functions to handle time comparison, quiet
-   hours detection, and notification creation.
-===================================================== */
-
-function pad2(n) { return String(n).padStart(2, "0"); }
 function nowHHMM() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Singapore",
@@ -39,16 +37,17 @@ function nowHHMM() {
     hour12: false,
   }).formatToParts(new Date());
 
-  const hh = parts.find(p => p.type === "hour")?.value ?? "00";
-  const mm = parts.find(p => p.type === "minute")?.value ?? "00";
+  const hh = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const mm = parts.find((p) => p.type === "minute")?.value ?? "00";
   return `${hh}:${mm}`;
 }
+
 function hhmmToMinutes(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
 }
+
 function inQuietHours(now, start, end) {
-  // handles overnight ranges like 22:00 -> 07:00
   const n = hhmmToMinutes(now);
   const s = hhmmToMinutes(start);
   const e = hhmmToMinutes(end);
@@ -56,11 +55,18 @@ function inQuietHours(now, start, end) {
   return n >= s || n < e;
 }
 
-// Your tasks store time like "9:00 AM".
-// This converts "9:00 AM" -> "09:00", "6:00 PM" -> "18:00"
+// If your task time is like "07:00" then return it directly.
+// If it's like "9:00 AM", convert it.
 function taskTimeToHHMM(timeStr) {
-  const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const t = timeStr.trim();
+
+  // already 24h format "07:00"
+  if (/^\d{2}:\d{2}$/.test(t)) return t;
+
+  // convert "9:00 AM"
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (!m) return null;
+
   let hh = Number(m[1]);
   const mm = Number(m[2]);
   const ap = m[3].toUpperCase();
@@ -84,6 +90,49 @@ async function insertNotification({ userId, taskId = null, type, message }) {
   );
 }
 
+/* ---------------- DB INIT (SINGLE SOURCE: init.sql) ---------------- */
+async function ensureSchemaAndSeed() {
+  // Create tables (ONLY from init.sql)
+  const sql = fs.readFileSync(path.resolve("./db/init.sql"), "utf8");
+  await pool.query(sql);
+
+  // Seed demo data (safe: only if empty)
+  const now = new Date().toISOString();
+
+  const userCount = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
+  if (userCount.rows[0].c === 0) {
+    await pool.query(
+      `INSERT INTO users (id,email,password,role,created_at_iso) VALUES
+       ('u1','user1@123','123456','User',$1),
+       ('u2','user2@123','123456','User',$1);`,
+      [now]
+    );
+  }
+
+  const cgCount = await pool.query(`SELECT COUNT(*)::int AS c FROM caregivers`);
+  if (cgCount.rows[0].c === 0) {
+    await pool.query(
+      `INSERT INTO caregivers (id,name,email,password,created_at_iso) VALUES
+       ('cg1','Admin','admin@123','123456',$1),
+       ('cg2','Admin 1','admin1@123','123456',$1);`,
+      [now]
+    );
+  }
+
+  const taskCount = await pool.query(`SELECT COUNT(*)::int AS c FROM tasks`);
+  if (taskCount.rows[0].c === 0) {
+    await pool.query(`
+      INSERT INTO tasks (id, user_id, title, emoji, time, is_critical) VALUES
+      ('t1','u1','Wash Face','🧼','07:00',false),
+      ('t2','u1','Brush Teeth','🪥','07:15',true),
+      ('t3','u1','Take Vitamin','💊','07:30',true),
+      ('t4','u1','Get Dressed','👕','07:45',false),
+      ('t5','u1','Clean Room','🧹','08:00',false);
+    `);
+  }
+
+  console.log("✅ DB schema + seed ready");
+}
 
 /* ---------------- HEALTH ---------------- */
 app.get("/health", (req, res) => {
@@ -94,7 +143,7 @@ app.get("/health", (req, res) => {
 app.post("/caregiver/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
@@ -109,14 +158,13 @@ app.post("/caregiver/login", async (req, res) => {
     }
 
     const caregiver = query.rows[0];
-    // Generate a simple token (in production, use JWT)
     const token = "caregiver_" + Math.random().toString(16).slice(2);
 
     res.json({
       token,
       caregiverId: caregiver.id,
       name: caregiver.name,
-      email
+      email,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -127,17 +175,14 @@ app.post("/caregiver/login", async (req, res) => {
 app.post("/user/signup", async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    // Check if email already exists
-    const existing = await pool.query(
-      `SELECT id FROM users WHERE email=$1`,
-      [email]
-    );
-
+    const existing = await pool.query(`SELECT id FROM users WHERE email=$1`, [
+      email,
+    ]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ message: "Email already registered" });
     }
@@ -145,14 +190,15 @@ app.post("/user/signup", async (req, res) => {
     const userId = "u_" + Math.random().toString(16).slice(2);
 
     await pool.query(
-      `INSERT INTO users VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO users (id,email,password,role,created_at_iso)
+       VALUES ($1,$2,$3,$4,$5)`,
       [userId, email, password, "User", new Date().toISOString()]
     );
 
     res.status(201).json({
       userId,
       email,
-      message: "User account created successfully"
+      message: "User account created successfully",
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -163,14 +209,14 @@ app.post("/user/signup", async (req, res) => {
 app.post("/user/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
 
     const query = await pool.query(
-      `SELECT id FROM users WHERE email=$1 AND password=$2 AND role=$3`,
-      [email, password, "User"]
+      `SELECT id FROM users WHERE email=$1 AND password=$2 AND role='User'`,
+      [email, password]
     );
 
     if (query.rows.length === 0) {
@@ -180,12 +226,7 @@ app.post("/user/login", async (req, res) => {
     const userId = query.rows[0].id;
     const token = "user_" + Math.random().toString(16).slice(2);
 
-    res.json({
-      token,
-      userId,
-      email,
-      message: "Login successful"
-    });
+    res.json({ token, userId, email, message: "Login successful" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -195,29 +236,28 @@ app.post("/user/login", async (req, res) => {
 app.post("/caregiver/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    
+
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email, and password required" });
+      return res
+        .status(400)
+        .json({ message: "Name, email, and password required" });
     }
 
-    // Check if email already exists
     const existing = await pool.query(
       `SELECT id FROM caregivers WHERE email=$1`,
       [email]
     );
-
     if (existing.rows.length > 0) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
     const caregiverId = "cg_" + Math.random().toString(16).slice(2);
-
     await pool.query(
-      `INSERT INTO caregivers VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO caregivers (id,name,email,password,created_at_iso)
+       VALUES ($1,$2,$3,$4,$5)`,
       [caregiverId, name, email, password, new Date().toISOString()]
     );
 
-    // Generate token
     const token = "caregiver_" + Math.random().toString(16).slice(2);
 
     res.status(201).json({
@@ -225,134 +265,21 @@ app.post("/caregiver/signup", async (req, res) => {
       caregiverId,
       name,
       email,
-      message: "Caregiver account created successfully"
+      message: "Caregiver account created successfully",
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-/* ---------------- DB INIT ---------------- */
-app.get("/db/init", async (req, res) => {
-  try {
-    // Create users table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL,
-        created_at_iso TEXT NOT NULL
-      );
-    `);
-
-    // Create caregivers table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS caregivers (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        created_at_iso TEXT NOT NULL
-      );
-    `);
-
-    // Create tasks table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        emoji TEXT NOT NULL,
-        time TEXT NOT NULL,
-        is_critical BOOLEAN DEFAULT FALSE
-      );
-    `);
-
-    // Create task_logs table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS task_logs (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        date_iso TEXT NOT NULL,
-        done_at_iso TEXT NOT NULL
-      );
-    `);
-
-    // Create notification_prefs table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS notification_prefs (
-      user_id TEXT PRIMARY KEY,
-      quiet_start TEXT DEFAULT '22:00',
-      quiet_end   TEXT DEFAULT '07:00',
-      followup_minutes INT DEFAULT 15
-      );
-    `);
-
-    // Create notifications table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      task_id TEXT,
-      type TEXT NOT NULL,
-      message TEXT NOT NULL,
-      created_at_iso TEXT NOT NULL,
-      read BOOLEAN DEFAULT FALSE
-      );
-    `);
-
-    // Seed users
-    const count = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
-    if (count.rows[0].c === 0) {
-      const now = new Date().toISOString();
-      await pool.query(`
-        INSERT INTO users VALUES
-        ('u1','user1@123','123456','User',$1),
-        ('u2','user2@123','123456','User',$1);
-      `, [now]);
-    }
-
-    // Seed caregivers
-    const caregiverCount = await pool.query(`SELECT COUNT(*)::int AS c FROM caregivers`);
-    if (caregiverCount.rows[0].c === 0) {
-      const now = new Date().toISOString();
-      await pool.query(`
-        INSERT INTO caregivers VALUES
-        ('cg1','Admin','admin@123','123456',$1),
-        ('cg2','Admin 1','admin1@123','123456',$1);
-      `, [now]);
-    }
-
-    // Seed sample tasks for user u1
-    const taskCount = await pool.query(`SELECT COUNT(*)::int AS c FROM tasks`);
-    if (taskCount.rows[0].c === 0) {
-      await pool.query(`
-        INSERT INTO tasks (id, user_id, title, emoji, time, is_critical) VALUES
-        ('t1','u1','Wash Face','🧼','07:00',false),
-        ('t2','u1','Brush Teeth','🪥','07:15',true),
-        ('t3','u1','Take Vitamin','💊','07:30',true),
-        ('t4','u1','Get Dressed','👕','07:45',false),
-        ('t5','u1','Clean Room','🧹','08:00',false);
-      `);
-    }
-
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-/* ---------------- CAREGIVER OVERVIEW (FIX) ---------------- */
+/* ---------------- CAREGIVER OVERVIEW ---------------- */
 app.get("/caregiver/overview", async (req, res) => {
   try {
     const day = todayKey();
 
-    // For MVP: caregiver monitors user u1
-    const userRow = await pool.query(`SELECT id, name FROM users WHERE id='u1'`);
-    const userId = userRow.rows[0]?.id || "u1";
-    const name = userRow.rows[0]?.name || "Alex";
+    // MVP: caregiver monitors user u1
+    const userId = "u1";
+    const name = "User u1";
 
     const tasks = await pool.query(
       `SELECT id, is_critical FROM tasks WHERE user_id=$1`,
@@ -365,7 +292,6 @@ app.get("/caregiver/overview", async (req, res) => {
     );
 
     const doneSet = new Set(logs.rows.map((r) => r.task_id));
-
     const total = tasks.rows.length;
     const done = tasks.rows.filter((t) => doneSet.has(t.id)).length;
 
@@ -430,19 +356,21 @@ app.post("/tasks/:taskId/done", async (req, res) => {
   );
 
   if (exists.rows.length) {
-    await pool.query(`DELETE FROM task_logs WHERE id=$1`, [
-      exists.rows[0].id,
-    ]);
+    await pool.query(`DELETE FROM task_logs WHERE id=$1`, [exists.rows[0].id]);
     return res.json({ done: false });
   }
 
-  await pool.query(`INSERT INTO task_logs VALUES ($1,$2,$3,$4,$5)`, [
-    "log_" + Math.random().toString(16).slice(2),
-    taskId,
-    userId,
-    day,
-    new Date().toISOString(),
-  ]);
+  await pool.query(
+    `INSERT INTO task_logs (id, task_id, user_id, date_iso, done_at_iso)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [
+      "log_" + Math.random().toString(16).slice(2),
+      taskId,
+      userId,
+      day,
+      new Date().toISOString(),
+    ]
+  );
 
   res.json({ done: true });
 });
@@ -476,14 +404,11 @@ app.post("/tasks", async (req, res) => {
 
   const id = "t_" + Math.random().toString(16).slice(2);
 
-  await pool.query(`INSERT INTO tasks VALUES ($1,$2,$3,$4,$5,$6)`, [
-    id,
-    userId,
-    title,
-    emoji,
-    time,
-    Boolean(isCritical),
-  ]);
+  await pool.query(
+    `INSERT INTO tasks (id, user_id, title, emoji, time, is_critical)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, userId, title, emoji, time, Boolean(isCritical)]
+  );
 
   res.status(201).json({ id });
 });
@@ -496,11 +421,114 @@ app.delete("/tasks/:taskId", async (req, res) => {
   const r = await pool.query(`DELETE FROM tasks WHERE id=$1`, [taskId]);
 
   if (!r.rowCount) return res.status(404).json({ message: "Not found" });
+  res.json({ ok: true });
+});
+
+/* ---------------- NOTIFICATIONS ---------------- */
+app.get("/notifications", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const r = await pool.query(
+    `SELECT id, task_id AS "taskId", type, message, created_at_iso AS "createdAt", read
+     FROM notifications
+     WHERE user_id=$1
+     ORDER BY created_at_iso DESC
+     LIMIT 50`,
+    [userId]
+  );
+
+  res.json({ notifications: r.rows });
+});
+
+app.post("/notifications/:id/read", async (req, res) => {
+  const { id } = req.params;
+  await pool.query(`UPDATE notifications SET read=true WHERE id=$1`, [id]);
+  res.json({ ok: true });
+});
+
+app.get("/prefs/notifications", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  const r = await pool.query(
+    `SELECT quiet_start AS "quietStart", quiet_end AS "quietEnd", followup_minutes AS "followupMinutes"
+     FROM notification_prefs WHERE user_id=$1`,
+    [userId]
+  );
+
+  if (!r.rows.length) {
+    await pool.query(`INSERT INTO notification_prefs (user_id) VALUES ($1)`, [
+      userId,
+    ]);
+    return res.json({ quietStart: "22:00", quietEnd: "07:00", followupMinutes: 15 });
+  }
+
+  res.json(r.rows[0]);
+});
+
+app.post("/prefs/notifications", async (req, res) => {
+  const { userId, quietStart, quietEnd, followupMinutes } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId required" });
+
+  await pool.query(
+    `INSERT INTO notification_prefs (user_id, quiet_start, quiet_end, followup_minutes)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (user_id) DO UPDATE
+     SET quiet_start=EXCLUDED.quiet_start,
+         quiet_end=EXCLUDED.quiet_end,
+         followup_minutes=EXCLUDED.followup_minutes`,
+    [
+      userId,
+      quietStart || "22:00",
+      quietEnd || "07:00",
+      Number(followupMinutes ?? 15),
+    ]
+  );
 
   res.json({ ok: true });
 });
 
-/* ---------------- USER STREAKS ---------------- */
+/* ---------------- REMINDER WORKER ---------------- */
+async function reminderWorker() {
+  const userId = "u1"; // demo user
+  const now = nowHHMM();
+  const today = todayKey();
+
+  const pref = await pool.query(
+    `SELECT * FROM notification_prefs WHERE user_id=$1`,
+    [userId]
+  );
+
+  const prefs =
+    pref.rows[0] || { quiet_start: "22:00", quiet_end: "07:00", followup_minutes: 15 };
+
+  if (inQuietHours(now, prefs.quiet_start, prefs.quiet_end)) return;
+
+  const tasks = await pool.query(`SELECT * FROM tasks WHERE user_id=$1`, [userId]);
+  const done = await pool.query(
+    `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
+    [userId, today]
+  );
+
+  const doneSet = new Set(done.rows.map((x) => x.task_id));
+
+  for (const t of tasks.rows) {
+    const taskTime = taskTimeToHHMM(t.time);
+    if (!taskTime) continue;
+
+    if (taskTime === now && !doneSet.has(t.id)) {
+      await insertNotification({
+        userId,
+        taskId: t.id,
+        type: "REMINDER",
+        message: `Time to complete: ${t.title}`,
+      });
+    }
+  }
+}
+
+/*----------------- STREAKS ------------------ */
 app.get("/streaks", async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ message: "userId required" });
@@ -525,7 +553,7 @@ app.get("/streaks", async (req, res) => {
         currentStreak++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else {
-        // Allow 1 day gap if checking today (user might not have completed today yet)
+        // Allow 1 day gap if checking today
         if (currentStreak === 0 && dateStr === today) {
           checkDate.setDate(checkDate.getDate() - 1);
           continue;
@@ -547,9 +575,8 @@ app.get("/streaks", async (req, res) => {
         const curr = new Date(dateStr);
         const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
 
-        if (diffDays === 1) {
-          tempStreak++;
-        } else {
+        if (diffDays === 1) tempStreak++;
+        else {
           longestStreak = Math.max(longestStreak, tempStreak);
           tempStreak = 1;
         }
@@ -558,7 +585,7 @@ app.get("/streaks", async (req, res) => {
     }
     longestStreak = Math.max(longestStreak, tempStreak);
 
-    // Calculate weekly completion rate (last 7 days)
+    // Weekly completion rate (last 7 days)
     const last7Days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date();
@@ -566,14 +593,6 @@ app.get("/streaks", async (req, res) => {
       last7Days.push(d.toISOString().split("T")[0]);
     }
 
-    // Get total tasks for user
-    const tasksResult = await pool.query(
-      `SELECT COUNT(*) as count FROM tasks WHERE user_id=$1`,
-      [userId]
-    );
-    const totalTasksPerDay = parseInt(tasksResult.rows[0].count) || 1;
-
-    // Count completed days in last 7 days
     const completedDaysInWeek = last7Days.filter((d) =>
       completedDates.includes(d)
     ).length;
@@ -594,179 +613,31 @@ app.get("/streaks", async (req, res) => {
   }
 });
 
-/* =====================================================
-   FEATURE : NOTIFICATION APIs
-   -----------------------------------------------------
-   Allows frontend to fetch notifications and mark
-   them as read.
-===================================================== */
-// Get notifications
-app.get("/notifications", async (req, res) => {
-  const { userId } = req.query;
-  if (!userId) return res.status(400).json({ message: "userId required" });
 
-  const r = await pool.query(
-    `SELECT id, task_id AS "taskId", type, message, created_at_iso AS "createdAt", read
-     FROM notifications
-     WHERE user_id=$1
-     ORDER BY created_at_iso DESC
-     LIMIT 50`,
-    [userId]
-  );
-
-  res.json({ notifications: r.rows });
-});
-
-// Mark notification as read
-app.post("/notifications/:id/read", async (req, res) => {
-  const { id } = req.params;
-  await pool.query(`UPDATE notifications SET read=true WHERE id=$1`, [id]);
-  res.json({ ok: true });
-});
-
-// Get / Update notification preferences
-app.get("/prefs/notifications", async (req, res) => {
-  const { userId } = req.query;
-  if (!userId) return res.status(400).json({ message: "userId required" });
-
-  const r = await pool.query(
-    `SELECT quiet_start AS "quietStart", quiet_end AS "quietEnd", followup_minutes AS "followupMinutes"
-     FROM notification_prefs WHERE user_id=$1`,
-    [userId]
-  );
-
-  if (!r.rows.length) {
-    await pool.query(`INSERT INTO notification_prefs (user_id) VALUES ($1)`, [userId]);
-    return res.json({ quietStart: "22:00", quietEnd: "07:00", followupMinutes: 15 });
-  }
-
-  res.json(r.rows[0]);
-});
-
-app.post("/prefs/notifications", async (req, res) => {
-  const { userId, quietStart, quietEnd, followupMinutes } = req.body;
-  if (!userId) return res.status(400).json({ message: "userId required" });
-
-  await pool.query(
-    `INSERT INTO notification_prefs (user_id, quiet_start, quiet_end, followup_minutes)
-     VALUES ($1,$2,$3,$4)
-     ON CONFLICT (user_id) DO UPDATE
-     SET quiet_start=EXCLUDED.quiet_start,
-         quiet_end=EXCLUDED.quiet_end,
-         followup_minutes=EXCLUDED.followup_minutes`,
-    [userId, quietStart || "22:00", quietEnd || "07:00", Number(followupMinutes ?? 15)]
-  );
-
-  res.json({ ok: true });
-});
-
-
-
-/* =====================================================
-   FEATURE 1: REMINDER BACKGROUND WORKER
-   -----------------------------------------------------
-   Runs every minute to:
-   - Send task reminders at scheduled time
-   - Send follow-up if task not completed
-   - Respect quiet hours
-===================================================== */
-
-async function reminderWorker() {
-  const userId = "u1"; // demo user
-  const now = nowHHMM();
-  const today = todayKey();
-
-  const pref = await pool.query(
-    `SELECT * FROM notification_prefs WHERE user_id=$1`,
-    [userId]
-  );
-
-  const prefs = pref.rows[0] || { quiet_start: "22:00", quiet_end: "07:00", followup_minutes: 15 };
-
-  if (inQuietHours(now, prefs.quiet_start, prefs.quiet_end)) return;
-
-  const tasks = await pool.query(`SELECT * FROM tasks WHERE user_id=$1`, [userId]);
-  const done = await pool.query(
-    `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
-    [userId, today]
-  );
-
-  const doneSet = new Set(done.rows.map(x => x.task_id));
-
-  for (const t of tasks.rows) {
-    const taskTime = taskTimeToHHMM(t.time);
-    if (!taskTime) continue;
-
-    if (taskTime === now && !doneSet.has(t.id)) {
-      await insertNotification({
-        userId,
-        taskId: t.id,
-        type: "REMINDER",
-        message: `Time to complete: ${t.title}`
-      });
+/* ---------------- BOOTSTRAP ---------------- */
+async function bootstrap() {
+  // Wait until DB accepts connections
+  for (let i = 0; i < 20; i++) {
+    try {
+      await pool.query("SELECT 1");
+      break;
+    } catch {
+      console.log("⏳ Waiting for database...");
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
+
+  await ensureSchemaAndSeed();
+
+  // start worker only after tables exist
+  setInterval(reminderWorker, 60 * 1000);
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Backend running on http://localhost:${PORT}`);
+  });
 }
 
-setInterval(reminderWorker, 60 * 1000);
-
-
-
-/* =====================================================
-   FEATURE 2: TASK HISTORY & PROGRESS ANALYTICS
-   -----------------------------------------------------
-   Returns 7-day completion stats and streaks to
-   support caregiver monitoring and planning.
-===================================================== */
-// Weekly analytics (last 7 days ending today or endDate)
-app.get("/analytics/weekly", async (req, res) => {
-  const { userId, endDate } = req.query;
-  if (!userId) return res.status(400).json({ message: "userId required" });
-
-  const end = endDate ? new Date(endDate + "T00:00:00") : new Date();
-  const days = [];
-
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(end);
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
-  }
-
-  const tasksR = await pool.query(`SELECT id FROM tasks WHERE user_id=$1`, [userId]);
-  const totalTasks = tasksR.rows.length;
-
-  const logsR = await pool.query(
-    `SELECT date_iso, COUNT(*)::int AS done
-     FROM task_logs
-     WHERE user_id=$1 AND date_iso = ANY($2)
-     GROUP BY date_iso`,
-    [userId, days]
-  );
-
-  const doneMap = new Map(logsR.rows.map((r) => [r.date_iso, r.done]));
-  const series = days.map((d) => {
-    const done = doneMap.get(d) || 0;
-    const total = totalTasks;
-    const rate = total === 0 ? 0 : Math.round((done / total) * 100);
-    return { date: d, done, total, rate };
-  });
-
-  // Simple streak: consecutive days with rate == 100
-  let streak = 0;
-  for (let i = series.length - 1; i >= 0; i--) {
-    if (series[i].total > 0 && series[i].rate === 100) streak++;
-    else break;
-  }
-
-  res.json({ totalTasks, streak, series });
+bootstrap().catch((e) => {
+  console.error("❌ Startup failed:", e.message);
+  process.exit(1);
 });
-
-
-
-/* ---------------- START ---------------- */
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
-
-
-
