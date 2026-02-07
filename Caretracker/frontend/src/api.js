@@ -27,3 +27,6 @@ export const createTask = (payload) =>
 
 export const deleteTask = (taskId) =>
   fetch(`${BASE}/tasks/${taskId}`, { method: "DELETE" }).then((r) => r.json());
+
+export const getStreaks = (userId) =>
+  fetch(`${BASE}/streaks?userId=${userId}`).then((r) => r.json());

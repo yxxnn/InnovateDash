@@ -9,6 +9,8 @@ import FaceLogin from "./pages/FaceLogin";
 import UserSignup from "./pages/UserSignup";
 import CaregiverSignup from "./pages/CaregiverSignup";
 import Insights from "./pages/Insights";
+import Streaks from "./pages/Streaks";
+import UserTasks from "./pages/UserTasks";
 
 
 export default function App() {
@@ -22,6 +24,8 @@ export default function App() {
       <Route path="/signup" element={<UserSignup />} />
       <Route path="/caregiver/signup" element={<CaregiverSignup />} />
       <Route path="/pwid" element={<PwidHome />} />
+      <Route path="/user-tasks" element={<UserTasks />} />
+      <Route path="/streaks" element={<Streaks />} />
       <Route path="/caregiver" element={<CaregiverDashboard />} />
       <Route path="*" element={<div style={{ padding: 20 }}>404 Not Found</div>} />
       <Route path="/insights" element={<Insights />} />
