@@ -170,7 +170,7 @@ export default function UserProfile() {
                 <p className="mt-1 text-zinc-500">{displayEmail}</p>
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#e7f3e7] px-3 py-1 text-sm font-semibold text-[#0e1b0e]">
                   <span className="material-symbols-outlined text-lg">person</span>
-                  Companion User
+                  CompanionCare User
                 </div>
                 {profile?.createdAt && (
                   <p className="mt-3 text-xs text-zinc-400">

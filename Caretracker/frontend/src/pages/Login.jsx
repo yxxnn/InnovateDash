@@ -39,7 +39,7 @@ export default function Login() {
             </span>
           </div>
           <h2 className="text-[#0e1b0e] text-xl font-bold tracking-tight">
-            Companion
+            CompanionCare
           </h2>
         </button>
         <div className="flex items-center gap-4">

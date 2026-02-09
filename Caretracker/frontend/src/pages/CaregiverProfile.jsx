@@ -64,7 +64,7 @@ export default function CaregiverProfile() {
   return (
     <>
       <AppHeader
-        appName="CareTrack+"
+        appName="CompanionCare"
         subtitle="Daily Task Support"
         userName={displayName}
         role="Caregiver"

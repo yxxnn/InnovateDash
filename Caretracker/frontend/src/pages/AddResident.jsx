@@ -63,7 +63,7 @@ export default function AddResident() {
             </span>
           </div>
           <h2 className="text-slate-900 text-xl font-bold tracking-tight">
-            CareTracker
+            CompanionCare
           </h2>
         </button>
         <button 

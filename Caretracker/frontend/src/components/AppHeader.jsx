@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 export default function AppHeader({
-  appName = "CareTrack+",
+  appName = "CompanionCare",
   subtitle = "Daily Task Support",
   userName = "User",
   role = "User",

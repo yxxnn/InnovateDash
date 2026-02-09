@@ -22,7 +22,7 @@ export default function LandingPage() {
             </span>
           </div>
           <h1 className="text-[#0e1b0e] text-xl font-bold tracking-tight">
-            Companion
+            CompanionCare
           </h1>
         </div>
         <div className="flex items-center gap-4">

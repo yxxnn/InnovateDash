@@ -52,7 +52,7 @@ export default function UserLogin() {
             </span>
           </div>
           <h2 className="text-[#0e1b0e] text-xl font-bold tracking-tight">
-            Companion
+            CompanionCare
           </h2>
         </button>
         <div className="flex items-center gap-4">
@@ -192,7 +192,7 @@ export default function UserLogin() {
 
       {/* Footer */}
       <footer className="py-8 px-10 text-center text-zinc-400 text-xs">
-        <p>© 2024 Companion Independent Living. All rights reserved.</p>
+        <p>© 2024 CompanionCare. All rights reserved.</p>
       </footer>
 
       {/* Background Blurs */}
