@@ -29,6 +29,14 @@ async function jsonOrThrow(res) {
 export const getCaregiverOverview = () =>
   fetch(`${BASE}/caregiver/overview`).then(jsonOrThrow);
 
+/* ================= USER FACE LOGIN (no password) ================= */
+export const userFaceLogin = (email) =>
+  fetch(`${BASE}/user/face-login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim() }),
+  }).then(jsonOrThrow);
+
 export const getCaregiverProfile = (caregiverId) =>
   fetch(`${BASE}/caregiver/profile?caregiverId=${encodeURIComponent(caregiverId)}`).then(jsonOrThrow);
 
