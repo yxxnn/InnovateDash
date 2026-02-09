@@ -445,12 +445,14 @@ app.get("/tasks/today", async (req, res) => {
 
   const day = todayKey();
 
-  // Get all recurring tasks OR today-only tasks created today
+  // Get all recurring tasks OR today-only tasks created today, with group info
   const tasks = await pool.query(
-    `SELECT * FROM tasks 
-     WHERE user_id=$1 
-     AND (is_recurring = true OR (is_recurring = false AND created_date_iso = $2))
-     ORDER BY time`,
+    `SELECT t.*, g.name as group_name 
+     FROM tasks t
+     LEFT JOIN task_groups g ON t.group_id = g.id
+     WHERE t.user_id=$1 
+     AND (t.is_recurring = true OR (t.is_recurring = false AND t.created_date_iso = $2))
+     ORDER BY t.time`,
     [userId, day]
   );
 
@@ -471,6 +473,8 @@ app.get("/tasks/today", async (req, res) => {
       isCritical: t.is_critical,
       isRecurring: t.is_recurring,
       done: doneSet.has(t.id),
+      groupId: t.group_id,
+      groupName: t.group_name,
     })),
   });
 });

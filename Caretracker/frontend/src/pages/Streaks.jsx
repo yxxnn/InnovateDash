@@ -11,7 +11,10 @@ export default function Streaks() {
   const [weeklyRate, setWeeklyRate] = useState(0);
   const [last7Days, setLast7Days] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = "";
+
+  const userEmail = localStorage.getItem("userEmail") || "";
+  const userDisplayName = userEmail ? userEmail.split("@")[0] : "User";
 
   async function load() {
     try {
@@ -37,7 +40,7 @@ export default function Streaks() {
     <div className="bg-[#f6f8f6] text-slate-900 min-h-screen">
       <div className="flex h-screen overflow-hidden">
         {/* Sidebar Navigation */}
-        <aside className="hidden md:flex w-60 bg-white border-r border-slate-200 flex-col justify-between p-4">
+        <aside className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col justify-between p-6 shadow-lg">
           <div className="space-y-6">
             {/* Profile Section */}
             <button
@@ -49,7 +52,7 @@ export default function Streaks() {
                 <span className="material-symbols-outlined text-[#19e619] text-2xl">person</span>
               </div>
               <div>
-                <h2 className="text-base font-bold leading-tight">Hi, User!</h2>
+                <h2 className="text-base font-bold leading-tight">Hi, {userDisplayName}!</h2>
                 <p className="text-xs text-slate-500">Ready for today?</p>
               </div>
             </button>
@@ -105,7 +108,7 @@ export default function Streaks() {
               <div className="w-9 h-9 rounded-full bg-[#19e619]/20 flex items-center justify-center border-2 border-[#19e619]">
                 <span className="material-symbols-outlined text-[#19e619] text-lg">person</span>
               </div>
-              <h2 className="text-base font-bold">Hi, User!</h2>
+              <h2 className="text-base font-bold">Hi, {userDisplayName}!</h2>
             </div>
             <button
               onClick={() => navigate("/pwid")}

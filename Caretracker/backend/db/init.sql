@@ -16,6 +16,14 @@ CREATE TABLE IF NOT EXISTS caregivers (
   created_at_iso TEXT NOT NULL
 );
 
+-- Task Groups
+CREATE TABLE IF NOT EXISTS task_groups (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at_iso TEXT NOT NULL
+);
+
 -- Tasks
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
@@ -25,7 +33,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   time TEXT NOT NULL,
   is_critical BOOLEAN DEFAULT FALSE,
   is_recurring BOOLEAN DEFAULT TRUE,
-  created_date_iso TEXT NOT NULL
+  created_date_iso TEXT NOT NULL,
+  group_id TEXT
 );
 
 -- Task logs (daily completion)

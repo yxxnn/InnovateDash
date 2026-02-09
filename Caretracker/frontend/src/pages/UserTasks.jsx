@@ -14,6 +14,14 @@ export default function UserTasks() {
   const [isRecurring, setIsRecurring] = useState(true);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [view, setView] = useState("landing"); // landing, create, group
+  const [groups, setGroups] = useState([]);
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
   async function load() {
     try {
@@ -56,6 +64,7 @@ export default function UserTasks() {
       setStatus("Task created successfully!");
       await load();
       setTimeout(() => setStatus(""), 3000);
+      // Stay on create view to allow creating more tasks
     } catch (e) {
       setStatus(e.message || "Save failed");
     }
@@ -75,6 +84,119 @@ export default function UserTasks() {
     }
   }
 
+  // Drag and drop handlers
+  function handleDragStart(task) {
+    setDraggedTask(task);
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+  }
+
+  function handleDrop(groupId) {
+    if (!draggedTask) return;
+    
+    setGroups(prev => prev.map(group => {
+      if (group.id === groupId) {
+        if (!group.tasks.find(t => t.id === draggedTask.id)) {
+          return { ...group, tasks: [...group.tasks, draggedTask] };
+        }
+      }
+      return group;
+    }));
+    
+    setDraggedTask(null);
+  }
+
+  function removeFromGroup(groupId, taskId) {
+    setGroups(prev => prev.map(group => {
+      if (group.id === groupId) {
+        return { ...group, tasks: group.tasks.filter(t => t.id !== taskId) };
+      }
+      return group;
+    }));
+  }
+
+  function createNewGroup() {
+    if (!newGroupName.trim()) {
+      setStatus("Group name is required");
+      setTimeout(() => setStatus(""), 3000);
+      return;
+    }
+    
+    const newGroup = {
+      id: `group-${Date.now()}`,
+      name: newGroupName.trim(),
+      tasks: []
+    };
+    
+    setGroups(prev => [...prev, newGroup]);
+    setNewGroupName("");
+    setShowNewGroupModal(false);
+    setStatus("Group created successfully!");
+    setTimeout(() => setStatus(""), 3000);
+  }
+
+  function deleteGroup(groupId) {
+    if (!confirm("Are you sure you want to delete this group? Tasks will not be deleted.")) return;
+    
+    setGroups(prev => prev.filter(group => group.id !== groupId));
+    setStatus("Group deleted");
+    setTimeout(() => setStatus(""), 3000);
+  }
+
+  function startEditingGroup(groupId, currentName) {
+    setEditingGroupId(groupId);
+    setEditingGroupName(currentName);
+  }
+
+  function saveGroupName() {
+    if (!editingGroupName.trim()) {
+      setStatus("Group name cannot be empty");
+      setTimeout(() => setStatus(""), 3000);
+      return;
+    }
+
+    setGroups(prev => prev.map(group => 
+      group.id === editingGroupId ? { ...group, name: editingGroupName.trim() } : group
+    ));
+    
+    setEditingGroupId(null);
+    setEditingGroupName("");
+    setStatus("Group name updated!");
+    setTimeout(() => setStatus(""), 3000);
+  }
+
+  function cancelEditing() {
+    setEditingGroupId(null);
+    setEditingGroupName("");
+  }
+
+  function saveGroups() {
+    console.log("Saved groups:", groups);
+    localStorage.setItem(`groups-${userId}`, JSON.stringify(groups));
+    setShowSaveConfirmation(true);
+  }
+
+  // Load groups on mount
+  useEffect(() => {
+    const savedGroups = localStorage.getItem(`groups-${userId}`);
+    if (savedGroups) {
+      try {
+        setGroups(JSON.parse(savedGroups));
+      } catch (e) {
+        console.error("Failed to load groups:", e);
+      }
+    }
+  }, [userId]);
+
+  // Auto-save groups whenever they change
+  useEffect(() => {
+    if (groups.length > 0) {
+      localStorage.setItem(`groups-${userId}`, JSON.stringify(groups));
+    }
+  }, [groups, userId]);
+
   // Separate tasks by type
   const recurringTasks = tasks.filter(t => t.is_recurring);
   const todayTasks = tasks.filter(t => !t.is_recurring);
@@ -83,7 +205,7 @@ export default function UserTasks() {
     <div className="bg-[#f6f8f6] min-h-screen text-slate-900">
       <div className="flex h-screen overflow-hidden">
         {/* Sidebar Navigation */}
-        <aside className="hidden md:flex w-60 bg-white border-r border-slate-200 flex-col justify-between p-4">
+        <aside className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col justify-between p-6 shadow-lg">
           <div className="space-y-6">
             {/* Profile Section */}
             <button
@@ -153,21 +275,105 @@ export default function UserTasks() {
               </div>
               <h2 className="text-base font-bold">Hi, User!</h2>
             </div>
-            <button
-              onClick={() => navigate("/pwid")}
-              className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              My Day
-            </button>
+            {view !== "landing" && (
+              <button
+                onClick={() => setView("landing")}
+                className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                ← Back
+              </button>
+            )}
           </div>
 
           <div className="max-w-4xl mx-auto space-y-6">
-            <header className="text-center md:text-left">
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Create New Task</h1>
-              <p className="text-sm md:text-base text-slate-500 mt-1">
-                Build your daily routine one task at a time
-              </p>
-            </header>
+            {/* Landing View */}
+            {view === "landing" && (
+              <>
+                <header className="text-center">
+                  <h1 className="text-2xl md:text-4xl font-bold text-slate-800 mb-2">Manage Your Tasks</h1>
+                  <p className="text-sm md:text-lg text-slate-500">
+                    Create, organize, and view your task groups
+                  </p>
+                </header>
+
+                <div className="grid md:grid-cols-2 gap-4 md:gap-6 mt-8 max-w-2xl mx-auto">
+                  {/* Create New Task Button */}
+                  <button
+                    onClick={() => setView("create")}
+                    className="group relative bg-gradient-to-br from-[#19e619] to-[#15c213] rounded-3xl p-6 md:p-8 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                  >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center mb-4 mx-auto group-hover:rotate-12 transition-transform">
+                        <span className="material-symbols-outlined text-4xl md:text-5xl">add_circle</span>
+                      </div>
+                      <h2 className="text-lg md:text-xl font-bold mb-2">Create New Task</h2>
+                      <p className="text-xs md:text-sm text-white/90">
+                        Add a new task to your daily routine
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Group Tasks Button */}
+                  <button
+                    onClick={() => setView("group")}
+                    className="group relative bg-gradient-to-br from-purple-500 to-purple-700 rounded-3xl p-6 md:p-8 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                  >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center mb-4 mx-auto group-hover:rotate-12 transition-transform">
+                        <span className="material-symbols-outlined text-4xl md:text-5xl">workspaces</span>
+                      </div>
+                      <h2 className="text-lg md:text-xl font-bold mb-2">Group Tasks</h2>
+                      <p className="text-xs md:text-sm text-white/90">
+                        Organize tasks into custom routines
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mt-8">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined">analytics</span>
+                    Quick Overview
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-slate-50 rounded-xl">
+                      <div className="text-3xl font-black text-[#19e619]">{tasks.length}</div>
+                      <div className="text-sm text-slate-600 mt-1">Total Tasks</div>
+                    </div>
+                    <div className="text-center p-4 bg-slate-50 rounded-xl">
+                      <div className="text-3xl font-black text-purple-600">{tasks.filter(t => t.is_recurring).length}</div>
+                      <div className="text-sm text-slate-600 mt-1">Daily Tasks</div>
+                    </div>
+                    <div className="text-center p-4 bg-slate-50 rounded-xl col-span-2 md:col-span-1">
+                      <div className="text-3xl font-black text-blue-600">{tasks.filter(t => !t.is_recurring).length}</div>
+                      <div className="text-sm text-slate-600 mt-1">One-Time Tasks</div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Create Task View */}
+            {view === "create" && (
+              <>
+                <div className="flex items-center justify-between">
+                  <header className="text-left">
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Create New Task</h1>
+                    <p className="text-sm md:text-base text-slate-500 mt-1">
+                      Build your daily routine one task at a time
+                    </p>
+                  </header>
+                  <button
+                    onClick={() => setView("landing")}
+                    className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white rounded-xl transition-all border border-slate-200"
+                  >
+                    <span className="material-symbols-outlined">arrow_back</span>
+                    Back
+                  </button>
+                </div>
 
             {/* Status Message */}
             {status && (
@@ -484,9 +690,354 @@ export default function UserTasks() {
                 </div>
               </section>
             </div>
+              </>
+            )}
+
+            {/* Group Tasks View */}
+            {view === "group" && (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <header className="text-left">
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Group Your Tasks</h1>
+                    <p className="text-sm md:text-base text-slate-500 mt-1">
+                      Create custom groups and drag tasks to organize your routines
+                    </p>
+                  </header>
+                  <button
+                    onClick={() => setView("landing")}
+                    className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white rounded-xl transition-all border border-slate-200"
+                  >
+                    <span className="material-symbols-outlined">arrow_back</span>
+                    Back
+                  </button>
+                </div>
+
+                <div className="grid lg:grid-cols-2 gap-6">
+                  {/* Available Tasks */}
+                  <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-gradient-to-r from-slate-600 to-slate-700 p-4 md:p-5">
+                      <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+                        <span className="material-symbols-outlined text-2xl">list</span>
+                        Available Tasks
+                      </h2>
+                      <p className="text-slate-200 text-sm mt-1">Drag these to groups below</p>
+                    </div>
+
+                    <div className="p-5 md:p-6 max-h-96 overflow-y-auto">
+                      {loading && (
+                        <div className="text-center py-8">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-200 border-t-[#19e619]"></div>
+                          <p className="text-sm text-slate-500 mt-3">Loading tasks...</p>
+                        </div>
+                      )}
+
+                      {!loading && tasks.length === 0 && (
+                        <div className="text-center py-12">
+                          <span className="material-symbols-outlined text-6xl text-slate-300">inbox</span>
+                          <p className="text-slate-500 mt-3">No tasks available</p>
+                          <p className="text-sm text-slate-400 mb-4">Create some tasks first</p>
+                          <button
+                            onClick={() => setView("create")}
+                            className="px-4 py-2 bg-[#19e619] text-white rounded-lg font-semibold hover:bg-[#15c213] transition-colors"
+                          >
+                            Create Task
+                          </button>
+                        </div>
+                      )}
+
+                      {!loading && tasks.length > 0 && (
+                        <div className="space-y-2">
+                          {tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              draggable
+                              onDragStart={() => handleDragStart(task)}
+                              className="group flex items-center gap-3 p-3 rounded-xl border-2 border-slate-200 bg-slate-50 hover:border-[#19e619] hover:bg-[#19e619]/5 transition-all cursor-move active:scale-95"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-white border-2 border-slate-200 flex items-center justify-center text-xl flex-shrink-0 group-hover:border-[#19e619] transition-all">
+                                {task.emoji || "📝"}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-sm font-bold text-slate-800">{task.title}</h3>
+                                  {task.is_critical && (
+                                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600">
+                                      <span className="material-symbols-outlined text-xs">priority_high</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-slate-600">
+                                  <span className="material-symbols-outlined text-xs">schedule</span>
+                                  {task.time}
+                                </div>
+                              </div>
+
+                              <span className="material-symbols-outlined text-slate-400 group-hover:text-[#19e619]">
+                                drag_indicator
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* Group Drop Zones */}
+                  <div className="space-y-4">
+                    {groups.map((group, index) => {
+                      const gradients = [
+                        'bg-gradient-to-r from-orange-400 to-orange-500',
+                        'bg-gradient-to-r from-blue-400 to-blue-500',
+                        'bg-gradient-to-r from-indigo-500 to-indigo-600',
+                        'bg-gradient-to-r from-purple-500 to-purple-600',
+                        'bg-gradient-to-r from-pink-500 to-pink-600',
+                        'bg-gradient-to-r from-green-500 to-green-600',
+                        'bg-gradient-to-r from-teal-500 to-teal-600',
+                        'bg-gradient-to-r from-cyan-500 to-cyan-600',
+                      ];
+                      const gradient = gradients[index % gradients.length];
+                      
+                      return (
+                        <section
+                          key={group.id}
+                          onDragOver={handleDragOver}
+                          onDrop={() => handleDrop(group.id)}
+                          className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+                            draggedTask ? 'border-dashed border-[#19e619] bg-[#19e619]/5' : 'border-slate-200'
+                          }`}
+                        >
+                          <div className={`p-4 ${gradient}`}>
+                            <div className="flex items-center justify-between">
+                              {editingGroupId === group.id ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="text"
+                                    value={editingGroupName}
+                                    onChange={(e) => setEditingGroupName(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && saveGroupName()}
+                                    className="flex-1 px-3 py-1.5 rounded-lg text-slate-800 font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-white"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={saveGroupName}
+                                    className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-white text-xl">check</span>
+                                  </button>
+                                  <button
+                                    onClick={cancelEditing}
+                                    className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-white text-xl">close</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-xl">workspaces</span>
+                                    {group.name}
+                                    <span className="text-sm bg-white/20 px-2 py-0.5 rounded-full ml-2">
+                                      {group.tasks.length}
+                                    </span>
+                                  </h3>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => startEditingGroup(group.id, group.name)}
+                                      className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                                      title="Edit group name"
+                                    >
+                                      <span className="material-symbols-outlined text-white text-lg">edit</span>
+                                    </button>
+                                    <button
+                                      onClick={() => deleteGroup(group.id)}
+                                      className="p-1.5 bg-white/20 hover:bg-red-500 rounded-lg transition-colors"
+                                      title="Delete group"
+                                    >
+                                      <span className="material-symbols-outlined text-white text-lg">delete</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-4 min-h-[120px]">
+                            {group.tasks.length === 0 ? (
+                              <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
+                                <span className="material-symbols-outlined text-4xl text-slate-300">add_circle</span>
+                                <p className="text-slate-400 text-sm mt-2">Drop tasks here</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {group.tasks.map((task) => (
+                                  <div
+                                    key={task.id}
+                                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50"
+                                  >
+                                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-lg flex-shrink-0">
+                                      {task.emoji || "📝"}
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-sm font-bold text-slate-800 truncate">{task.title}</h4>
+                                      <div className="flex items-center gap-1 text-xs text-slate-600">
+                                        <span className="material-symbols-outlined text-xs">schedule</span>
+                                        {task.time}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      onClick={() => removeFromGroup(group.id, task.id)}
+                                      className="p-1 hover:bg-red-50 rounded-lg transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-red-400 text-lg">close</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      );
+                    })}
+
+                    {/* Create New Group Button */}
+                    <button
+                      onClick={() => setShowNewGroupModal(true)}
+                      className="w-full p-6 bg-gradient-to-br from-slate-100 to-slate-200 hover:from-[#19e619]/10 hover:to-[#19e619]/20 border-2 border-dashed border-slate-300 hover:border-[#19e619] rounded-2xl transition-all group"
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center group-hover:bg-[#19e619]/10 transition-colors">
+                          <span className="material-symbols-outlined text-3xl text-slate-400 group-hover:text-[#19e619]">add_circle</span>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-600 group-hover:text-[#19e619]">Create New Group</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center gap-4 mt-6">
+                  <button
+                    onClick={saveGroups}
+                    className="px-8 py-3.5 text-base font-semibold bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined">save</span>
+                    Save Groups
+                  </button>
+                </div>
+
+                {status && (
+                  <div className={`p-4 rounded-xl text-sm font-medium text-center ${
+                    status.includes("success") ? "bg-green-50 text-green-700 border border-green-200" : "bg-blue-50 text-blue-700 border border-blue-200"
+                  }`}>
+                    {status}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </main>
       </div>
+
+      {/* Create New Group Modal */}
+      {showNewGroupModal && (
+        <div
+          onClick={() => setShowNewGroupModal(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-800">Create New Group</h3>
+              <button
+                onClick={() => setShowNewGroupModal(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined text-slate-400">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Group Name
+                </label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && createNewGroup()}
+                  placeholder="e.g., Morning Routine, Exercise Plan"
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={createNewGroup}
+                  className="flex-1 py-3 bg-gradient-to-r from-[#19e619] to-[#15c213] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-[#19e619]/30 transition-all"
+                >
+                  Create Group
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewGroupModal(false);
+                    setNewGroupName("");
+                  }}
+                  className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Confirmation Modal */}
+      {showSaveConfirmation && (
+        <div
+          onClick={() => setShowSaveConfirmation(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl text-center"
+          >
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-5xl text-green-600">check_circle</span>
+            </div>
+            
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">Groups Saved!</h3>
+            <p className="text-slate-600 mb-6">
+              Your task groups have been successfully saved. You can continue organizing your tasks or return to the main page.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowSaveConfirmation(false);
+                  setView("landing");
+                }}
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition-all"
+              >
+                Go to Main Page
+              </button>
+              <button
+                onClick={() => setShowSaveConfirmation(false)}
+                className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
+              >
+                Continue Organizing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
