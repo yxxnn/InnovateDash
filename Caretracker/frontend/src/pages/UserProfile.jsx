@@ -189,6 +189,33 @@ export default function UserProfile() {
                 </div>
               )}
 
+              {/* Caregiver Code Section */}
+              {profile?.residentCode && (
+                <div className="mt-8 rounded-lg border-2 border-[#19e619] bg-[#e7f3e7] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-[#19e619]">qr_code</span>
+                    <p className="text-sm font-semibold text-zinc-700">Share with caregiver</p>
+                  </div>
+                  <p className="text-xs text-zinc-600 mb-3">
+                    Caregivers can use this code to add you to their residents list.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-white px-3 py-2 text-center font-mono font-bold text-lg text-zinc-900 border border-zinc-200">
+                      {profile.residentCode}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(profile.residentCode);
+                      }}
+                      className="rounded-lg bg-white border border-zinc-200 px-4 py-2 text-zinc-700 font-semibold hover:bg-zinc-50 flex items-center gap-1 text-sm"
+                    >
+                      <span className="material-symbols-outlined text-lg">content_copy</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Edit section */}
               <div className="mt-8 border-t border-zinc-100 pt-6">
                 {editing ? (

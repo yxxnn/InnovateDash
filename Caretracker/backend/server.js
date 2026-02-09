@@ -90,6 +90,41 @@ async function insertNotification({ userId, taskId = null, type, message }) {
   );
 }
 
+/* Helper function to generate a unique resident code */
+function generateResidentCode() {
+  // Generate 8 character alphanumeric code
+  return Math.random().toString(36).substring(2, 8).toUpperCase() + 
+         Math.random().toString(36).substring(2, 4).toUpperCase();
+}
+
+/* Helper function to check if caregiver can see a user's tasks */
+async function canCaregiverSeeUser(caregiverId, userId) {
+  if (!caregiverId) return true; // No caregiver context, allow access
+  
+  try {
+    // Check if caregiver is assigned to this user
+    const assigned = await pool.query(
+      `SELECT COUNT(*) FROM caregiver_residents WHERE caregiver_id=$1 AND user_id=$2`,
+      [caregiverId, userId]
+    );
+    
+    if (assigned.rows[0].count === 0) return false; // Not assigned
+    
+    // Check if user has allowed caregiver to see tasks
+    const user = await pool.query(
+      `SELECT allow_caregiver_see FROM users WHERE id=$1`,
+      [userId]
+    );
+    
+    if (user.rows.length === 0) return false; // User not found
+    
+    return user.rows[0].allow_caregiver_see;
+  } catch (e) {
+    console.error("Error checking caregiver permission:", e);
+    return false;
+  }
+}
+
 /* ---------------- DB INIT (SINGLE SOURCE: init.sql) ---------------- */
 async function ensureSchemaAndSeed() {
   // Create tables (ONLY from init.sql)
@@ -101,11 +136,13 @@ async function ensureSchemaAndSeed() {
 
   const userCount = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
   if (userCount.rows[0].c === 0) {
+    const code1 = generateResidentCode();
+    const code2 = generateResidentCode();
     await pool.query(
-      `INSERT INTO users (id,email,password,name,role,created_at_iso) VALUES
-       ('u1','user1@123','123456','John Doe','User',$1),
-       ('u2','user2@123','123456','Jane Smith','User',$1);`,
-      [now]
+      `INSERT INTO users (id,email,password,name,role,created_at_iso,resident_code) VALUES
+       ('u1','user1@123','123456','John Doe','User',$1,$2),
+       ('u2','user2@123','123456','Jane Smith','User',$1,$3);`,
+      [now, code1, code2]
     );
   }
 
@@ -116,6 +153,17 @@ async function ensureSchemaAndSeed() {
        ('cg1','Admin','admin@123','123456',$1),
        ('cg2','Admin 1','admin1@123','123456',$1);`,
       [now]
+    );
+  }
+
+  // Assign residents to caregivers
+  const assignCount = await pool.query(`SELECT COUNT(*)::int AS c FROM caregiver_residents`);
+  if (assignCount.rows[0].c === 0) {
+    await pool.query(
+      `INSERT INTO caregiver_residents (id, caregiver_id, user_id, assigned_at_iso) VALUES
+       ($1, 'cg1', 'u1', $2),
+       ($3, 'cg1', 'u2', $2);`,
+      ["cr_" + Math.random().toString(16).slice(2), now, "cr_" + Math.random().toString(16).slice(2)]
     );
   }
 
@@ -206,17 +254,19 @@ app.post("/user/signup", async (req, res) => {
 
     const userId = "u_" + Math.random().toString(16).slice(2);
     const userName = name || email.split("@")[0];
+    const residentCode = generateResidentCode();
 
     await pool.query(
-      `INSERT INTO users (id,email,password,name,role,created_at_iso)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [userId, email, password, userName, "User", new Date().toISOString()]
+      `INSERT INTO users (id,email,password,name,role,created_at_iso,resident_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [userId, email, password, userName, "User", new Date().toISOString(), residentCode]
     );
 
     res.status(201).json({
       userId,
       email,
       name: userName,
+      residentCode,
       message: "User account created successfully",
     });
   } catch (e) {
@@ -282,7 +332,7 @@ app.get("/user/profile", async (req, res) => {
       return res.status(400).json({ message: "userId required" });
     }
     const q = await pool.query(
-      `SELECT id, email, name, role, created_at_iso FROM users WHERE id=$1`,
+      `SELECT id, email, name, role, created_at_iso, allow_caregiver_see, allow_caregiver_edit, resident_code FROM users WHERE id=$1`,
       [userId]
     );
     if (q.rows.length === 0) {
@@ -295,6 +345,9 @@ app.get("/user/profile", async (req, res) => {
       name: row.name,
       role: row.role,
       createdAt: row.created_at_iso,
+      allowCaregiverSee: row.allow_caregiver_see,
+      allowCaregiverEdit: row.allow_caregiver_edit,
+      residentCode: row.resident_code,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -433,36 +486,239 @@ app.patch("/caregiver/profile", async (req, res) => {
 /* ---------------- CAREGIVER OVERVIEW ---------------- */
 app.get("/caregiver/overview", async (req, res) => {
   try {
+    const { caregiverId } = req.query;
+    
+    if (!caregiverId) {
+      return res.status(400).json({ message: "caregiverId required" });
+    }
+
     const day = todayKey();
 
-    // MVP: caregiver monitors user u1
-    const userId = "u1";
-    const name = "User u1";
+    // Get all residents assigned to this caregiver
+    const assignedResidents = await pool.query(
+      `SELECT user_id FROM caregiver_residents WHERE caregiver_id=$1`,
+      [caregiverId]
+    );
 
-    const tasks = await pool.query(
-      `SELECT id, is_critical FROM tasks WHERE user_id=$1`,
+    if (assignedResidents.rows.length === 0) {
+      return res.json({ overview: [] });
+    }
+
+    // Get overview data for each assigned resident
+    const overview = await Promise.all(
+      assignedResidents.rows.map(async (row) => {
+        const userId = row.user_id;
+
+        // Check permission
+        const userQuery = await pool.query(
+          `SELECT allow_caregiver_see, name FROM users WHERE id=$1`,
+          [userId]
+        );
+
+        if (userQuery.rows.length === 0) {
+          return null; // Skip if user not found
+        }
+
+        const canSeeTasks = userQuery.rows[0].allow_caregiver_see;
+
+        // Only fetch task data if permission is granted
+        let done = 0;
+        let total = 0;
+        let missedCritical = 0;
+        let risk = "Low";
+
+        if (canSeeTasks) {
+          const tasks = await pool.query(
+            `SELECT id, is_critical FROM tasks WHERE user_id=$1`,
+            [userId]
+          );
+
+          const logs = await pool.query(
+            `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
+            [userId, day]
+          );
+
+          const doneSet = new Set(logs.rows.map((r) => r.task_id));
+          total = tasks.rows.length;
+          done = tasks.rows.filter((t) => doneSet.has(t.id)).length;
+
+          missedCritical = tasks.rows.filter(
+            (t) => t.is_critical && !doneSet.has(t.id)
+          ).length;
+
+          risk = missedCritical > 0 ? "Medium" : "Low";
+        }
+
+        return {
+          userId,
+          name: userQuery.rows[0].name || `User ${userId}`,
+          done,
+          total,
+          missedCritical,
+          risk,
+          canSeeTasks, // Include permission flag
+        };
+      })
+    );
+
+    // Filter out nulls (user not found), but keep residents with restricted access
+    const validOverview = overview.filter((r) => r !== null);
+
+    res.json({ overview: validOverview });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---- CAREGIVER: CHECK RESIDENT PERMISSIONS ---- */
+app.get("/caregiver/resident/:userId/permissions", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { caregiverId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId required" });
+    }
+
+    // Get user's permission settings
+    const userQuery = await pool.query(
+      `SELECT allow_caregiver_see, allow_caregiver_edit, name FROM users WHERE id=$1`,
       [userId]
     );
 
-    const logs = await pool.query(
-      `SELECT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
-      [userId, day]
-    );
+    if (userQuery.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    const doneSet = new Set(logs.rows.map((r) => r.task_id));
-    const total = tasks.rows.length;
-    const done = tasks.rows.filter((t) => doneSet.has(t.id)).length;
+    const userRow = userQuery.rows[0];
 
-    const missedCritical = tasks.rows.filter(
-      (t) => t.is_critical && !doneSet.has(t.id)
-    ).length;
-
-    const risk = missedCritical > 0 ? "Medium" : "Low";
+    // If caregiverId is provided, verify assignment
+    let isAssigned = true;
+    if (caregiverId) {
+      const assignedQuery = await pool.query(
+        `SELECT COUNT(*) FROM caregiver_residents WHERE caregiver_id=$1 AND user_id=$2`,
+        [caregiverId, userId]
+      );
+      isAssigned = assignedQuery.rows[0].count > 0;
+    }
 
     res.json({
-      date: day,
-      overview: [{ name, done, total, missedCritical, risk }],
+      userId,
+      name: userRow.name,
+      canSeeTasks: userRow.allow_caregiver_see && isAssigned,
+      canEditTasks: userRow.allow_caregiver_edit && isAssigned,
+      isAssigned,
+      allowCaregiverSee: userRow.allow_caregiver_see,
+      allowCaregiverEdit: userRow.allow_caregiver_edit,
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---- CAREGIVER: ADD RESIDENT BY CODE ---- */
+app.post("/caregiver/:caregiverId/residents", async (req, res) => {
+  try {
+    const { caregiverId } = req.params;
+    const { residentCode } = req.body;
+
+    if (!caregiverId || !residentCode) {
+      return res.status(400).json({ message: "caregiverId and residentCode required" });
+    }
+
+    // Find user by resident code
+    const userQuery = await pool.query(
+      `SELECT id, name, email FROM users WHERE resident_code=$1`,
+      [residentCode.trim()]
+    );
+
+    if (userQuery.rows.length === 0) {
+      return res.status(404).json({ message: "Invalid resident code. Please check and try again." });
+    }
+
+    const userId = userQuery.rows[0].id;
+    const userName = userQuery.rows[0].name;
+
+    // Check if already assigned
+    const existingQuery = await pool.query(
+      `SELECT id FROM caregiver_residents WHERE caregiver_id=$1 AND user_id=$2`,
+      [caregiverId, userId]
+    );
+
+    if (existingQuery.rows.length > 0) {
+      return res.status(400).json({ message: `${userName} is already in your residents list.` });
+    }
+
+    // Add the resident
+    const assignmentId = "cr_" + Math.random().toString(16).slice(2);
+    await pool.query(
+      `INSERT INTO caregiver_residents (id, caregiver_id, user_id, assigned_at_iso) VALUES ($1, $2, $3, $4)`,
+      [assignmentId, caregiverId, userId, new Date().toISOString()]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `${userName} has been added to your residents list!`,
+      userId,
+      userName,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---- CAREGIVER: GET RESIDENTS LIST ---- */
+app.get("/caregiver/:caregiverId/residents", async (req, res) => {
+  try {
+    const { caregiverId } = req.params;
+
+    if (!caregiverId) {
+      return res.status(400).json({ message: "caregiverId required" });
+    }
+
+    // Get all residents assigned to this caregiver
+    const residents = await pool.query(
+      `SELECT u.id, u.name, u.email, u.resident_code 
+       FROM users u
+       JOIN caregiver_residents cr ON u.id = cr.user_id
+       WHERE cr.caregiver_id = $1
+       ORDER BY u.name`,
+      [caregiverId]
+    );
+
+    res.json({
+      residents: residents.rows.map(row => ({
+        userId: row.id,
+        name: row.name,
+        email: row.email,
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---- CAREGIVER: REMOVE RESIDENT ---- */
+app.delete("/caregiver/resident/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { caregiverId } = req.body;
+
+    if (!userId || !caregiverId) {
+      return res.status(400).json({ message: "userId and caregiverId required" });
+    }
+
+    // Delete the caregiver-resident assignment
+    const result = await pool.query(
+      `DELETE FROM caregiver_residents WHERE caregiver_id=$1 AND user_id=$2 RETURNING id`,
+      [caregiverId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Resident assignment not found" });
+    }
+
+    res.json({ success: true, message: "Resident removed successfully" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -719,6 +975,119 @@ app.delete("/tasks/:taskId", async (req, res) => {
 
   if (!r.rowCount) return res.status(404).json({ message: "Not found" });
   res.json({ ok: true });
+});
+
+/* --------------- UPDATE USER PREFERENCES --------------- */
+app.patch("/user/preferences", async (req, res) => {
+  try {
+    const { userId, allowCaregiverEdit, allowCaregiverSee, notifyComplete, notifyReminder, notifyStreak } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: "userId required" });
+    }
+
+    // Update user caregiver preferences
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (allowCaregiverEdit !== undefined) {
+      updates.push(`allow_caregiver_edit=$${paramCount++}`);
+      values.push(Boolean(allowCaregiverEdit));
+    }
+
+    if (allowCaregiverSee !== undefined) {
+      updates.push(`allow_caregiver_see=$${paramCount++}`);
+      values.push(Boolean(allowCaregiverSee));
+    }
+
+    if (updates.length > 0) {
+      values.push(userId);
+      const query = `UPDATE users SET ${updates.join(", ")} WHERE id=$${paramCount} RETURNING id, email, name, allow_caregiver_edit, allow_caregiver_see`;
+      await pool.query(query, values);
+    }
+
+    // Update notification preferences in notification_prefs table
+    if (notifyComplete !== undefined || notifyReminder !== undefined || notifyStreak !== undefined) {
+      // Check if record exists
+      const exists = await pool.query(
+        `SELECT user_id FROM notification_prefs WHERE user_id=$1`,
+        [userId]
+      );
+
+      if (exists.rows.length === 0) {
+        // Insert new record
+        let inserts = [userId];
+        let insertValues = [$1];
+        let insertCount = 2;
+
+        let completeVal = notifyComplete !== undefined ? notifyComplete : true;
+        let reminderVal = notifyReminder !== undefined ? notifyReminder : true;
+        let streakVal = notifyStreak !== undefined ? notifyStreak : true;
+
+        await pool.query(
+          `INSERT INTO notification_prefs (user_id, notify_complete, notify_reminder, notify_streak) 
+           VALUES ($1, $${insertCount++}, $${insertCount++}, $${insertCount++})`,
+          [userId, Boolean(completeVal), Boolean(reminderVal), Boolean(streakVal)]
+        );
+      } else {
+        // Update existing record
+        const updateFields = [];
+        const updateVals = [];
+        let updateCount = 1;
+
+        if (notifyComplete !== undefined) {
+          updateFields.push(`notify_complete=$${updateCount++}`);
+          updateVals.push(Boolean(notifyComplete));
+        }
+        if (notifyReminder !== undefined) {
+          updateFields.push(`notify_reminder=$${updateCount++}`);
+          updateVals.push(Boolean(notifyReminder));
+        }
+        if (notifyStreak !== undefined) {
+          updateFields.push(`notify_streak=$${updateCount++}`);
+          updateVals.push(Boolean(notifyStreak));
+        }
+
+        if (updateFields.length > 0) {
+          updateVals.push(userId);
+          await pool.query(
+            `UPDATE notification_prefs SET ${updateFields.join(", ")} WHERE user_id=$${updateCount}`,
+            updateVals
+          );
+        }
+      }
+    }
+
+    // Return updated preferences
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name, u.allow_caregiver_edit, u.allow_caregiver_see,
+              COALESCE(np.notify_complete, true) as notify_complete,
+              COALESCE(np.notify_reminder, true) as notify_reminder,
+              COALESCE(np.notify_streak, true) as notify_streak
+       FROM users u
+       LEFT JOIN notification_prefs np ON u.id = np.user_id
+       WHERE u.id=$1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      allowCaregiverEdit: row.allow_caregiver_edit,
+      allowCaregiverSee: row.allow_caregiver_see,
+      notifyComplete: row.notify_complete,
+      notifyReminder: row.notify_reminder,
+      notifyStreak: row.notify_streak,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 /* --------------- UPDATE TASK --------------- */

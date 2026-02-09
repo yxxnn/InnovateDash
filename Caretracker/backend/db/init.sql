@@ -5,7 +5,10 @@ CREATE TABLE IF NOT EXISTS users (
   password TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL,
-  created_at_iso TEXT NOT NULL
+  created_at_iso TEXT NOT NULL,
+  allow_caregiver_edit BOOLEAN DEFAULT TRUE,
+  allow_caregiver_see BOOLEAN DEFAULT TRUE,
+  resident_code TEXT UNIQUE
 );
 
 -- Caregivers
@@ -15,6 +18,15 @@ CREATE TABLE IF NOT EXISTS caregivers (
   email TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
   created_at_iso TEXT NOT NULL
+);
+
+-- Caregiver-Resident Assignments
+CREATE TABLE IF NOT EXISTS caregiver_residents (
+  id TEXT PRIMARY KEY,
+  caregiver_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  assigned_at_iso TEXT NOT NULL,
+  UNIQUE(caregiver_id, user_id)
 );
 
 -- Task Groups
@@ -52,7 +64,10 @@ CREATE TABLE IF NOT EXISTS notification_prefs (
   user_id TEXT PRIMARY KEY,
   quiet_start TEXT DEFAULT '22:00',
   quiet_end   TEXT DEFAULT '07:00',
-  followup_minutes INT DEFAULT 15
+  followup_minutes INT DEFAULT 15,
+  notify_complete BOOLEAN DEFAULT TRUE,
+  notify_reminder BOOLEAN DEFAULT TRUE,
+  notify_streak BOOLEAN DEFAULT TRUE
 );
 
 -- Notifications

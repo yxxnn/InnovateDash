@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getUserProfile, updateUserProfile } from "../api";
+import { getUserProfile, updateUserProfile, updateUserPreferences } from "../api";
 
 export default function UserSettings() {
   const navigate = useNavigate();
@@ -27,8 +27,8 @@ export default function UserSettings() {
   const [notifyStreak, setNotifyStreak] = useState(true);
 
   // Privacy settings
-  const [shareData, setShareData] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [allowCaregiverEdit, setAllowCaregiverEdit] = useState(true);
+  const [allowCaregiverSee, setAllowCaregiverSee] = useState(true);
 
   useEffect(() => {
     if (!userId) {
@@ -41,6 +41,13 @@ export default function UserSettings() {
         setProfile(data);
         setEditEmail(data.email ?? storedEmail);
         setEditName(storedName);
+        // Load preference states from profile
+        if (data.allowCaregiverSee !== undefined) {
+          setAllowCaregiverSee(data.allowCaregiverSee);
+        }
+        if (data.allowCaregiverEdit !== undefined) {
+          setAllowCaregiverEdit(data.allowCaregiverEdit);
+        }
       } catch (e) {
         setError("Failed to load settings");
       } finally {
@@ -78,6 +85,49 @@ export default function UserSettings() {
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userName");
     navigate("/");
+  }
+
+  async function handleCaregiverEditChange(newValue) {
+    setAllowCaregiverEdit(newValue);
+    try {
+      await updateUserPreferences(userId, {
+        allowCaregiverEdit: newValue,
+      });
+    } catch (e) {
+      setError(e?.message || "Failed to save preference");
+      setAllowCaregiverEdit(!newValue);
+    }
+  }
+
+  async function handleCaregiverSeeChange(newValue) {
+    setAllowCaregiverSee(newValue);
+    try {
+      await updateUserPreferences(userId, {
+        allowCaregiverSee: newValue,
+      });
+    } catch (e) {
+      setError(e?.message || "Failed to save preference");
+      setAllowCaregiverSee(!newValue);
+    }
+  }
+
+  async function handleNotificationChange(prefKey, newValue) {
+    // Update local state first
+    if (prefKey === "complete") setNotifyTaskComplete(newValue);
+    if (prefKey === "reminder") setNotifyTaskReminder(newValue);
+    if (prefKey === "streak") setNotifyStreak(newValue);
+
+    try {
+      await updateUserPreferences(userId, {
+        [prefKey]: newValue,
+      });
+    } catch (e) {
+      setError(e?.message || "Failed to save notification preference");
+      // Revert on error
+      if (prefKey === "complete") setNotifyTaskComplete(!newValue);
+      if (prefKey === "reminder") setNotifyTaskReminder(!newValue);
+      if (prefKey === "streak") setNotifyStreak(!newValue);
+    }
   }
 
   if (!userId || loading) {
@@ -245,7 +295,7 @@ export default function UserSettings() {
                   />
                   <p className="text-xs text-slate-500 mt-1">At least 8 characters, include numbers and symbols</p>
                 </div>
-                <button className="w-full px-4 py-3 border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
+                <button className="w-full px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                   Update Password
                 </button>
               </div>
@@ -266,26 +316,26 @@ export default function UserSettings() {
                 {[
                   {
                     id: "complete",
+                    prefKey: "notifyComplete",
                     title: "Task Completed",
                     description: "Get notified when you mark a task as complete",
                     value: notifyTaskComplete,
-                    setValue: setNotifyTaskComplete,
                     icon: "check_circle",
                   },
                   {
                     id: "reminder",
+                    prefKey: "notifyReminder",
                     title: "Task Reminders",
                     description: "Receive gentle reminders for upcoming tasks",
                     value: notifyTaskReminder,
-                    setValue: setNotifyTaskReminder,
                     icon: "schedule",
                   },
                   {
                     id: "streak",
+                    prefKey: "notifyStreak",
                     title: "Streak Milestones",
                     description: "Celebrate your achievements and streak milestones",
                     value: notifyStreak,
-                    setValue: setNotifyStreak,
                     icon: "local_fire_department",
                   },
                 ].map((notification) => (
@@ -304,7 +354,7 @@ export default function UserSettings() {
                       <input
                         type="checkbox"
                         checked={notification.value}
-                        onChange={(e) => notification.setValue(e.target.checked)}
+                        onChange={(e) => handleNotificationChange(notification.prefKey, e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-12 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
@@ -346,19 +396,19 @@ export default function UserSettings() {
                 {[
                   {
                     id: "share",
-                    title: "Share Progress with Family",
-                    description: "Allow family members to see your daily progress",
-                    value: shareData,
-                    setValue: setShareData,
-                    icon: "group",
+                    title: "Allow Caregiver to Edit Tasks",
+                    description: "Permit caregivers to edit and manage your tasks",
+                    value: allowCaregiverEdit,
+                    onChangeHandler: handleCaregiverEditChange,
+                    icon: "edit",
                   },
                   {
                     id: "darkmode",
-                    title: "Dark Mode",
-                    description: "Use dark theme for reduced eye strain",
-                    value: darkMode,
-                    setValue: setDarkMode,
-                    icon: "dark_mode",
+                    title: "Allow Caregiver to See Tasks",
+                    description: "Permit caregivers to view your tasks and progress",
+                    value: allowCaregiverSee,
+                    onChangeHandler: handleCaregiverSeeChange,
+                    icon: "visibility",
                   },
                 ].map((setting) => (
                   <div
@@ -376,10 +426,10 @@ export default function UserSettings() {
                       <input
                         type="checkbox"
                         checked={setting.value}
-                        onChange={(e) => setting.setValue(e.target.checked)}
+                        onChange={(e) => setting.onChangeHandler(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-12 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
+                      <div className="w-14 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
                   </div>
                 ))}
@@ -396,7 +446,7 @@ export default function UserSettings() {
               <div className="space-y-3">
                 <button
                   onClick={handleLogout}
-                  className="w-full px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-colors border border-red-200 flex items-center justify-center gap-2"
+                  className="w-full px-6 py-3 bg-red-100 hover:bg-red-200 text-red-600 font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined">logout</span>
                   Logout

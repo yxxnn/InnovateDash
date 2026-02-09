@@ -15,53 +15,31 @@ export default function CaregiverDashboard() {
   async function loadResidents() {
     setLoading(true);
     try {
-      // Get overview data (currently returns hardcoded u1)
-      const overviewData = await getCaregiverOverview();
+      // Get overview data for this caregiver
+      const overviewData = await getCaregiverOverview(caregiverId);
       const overview = overviewData.overview || [];
 
-      // For each resident in overview, get their profile details
-      const residentDetails = await Promise.all(
-        overview.map(async (resident) => {
-          try {
-            // Get user profile to get full user data
-            // This assumes we have user IDs in overview or we hardcode u1 for MVP
-            const userId = resident.userId || "u1";
-            const profile = await getUserProfile(userId);
-            const tasks = await getTasks(userId);
+      // For each resident in overview, build resident details
+      const residentDetails = overview.map((resident) => {
+        const total = resident.total || 0;
+        const done = resident.done || 0;
+        const canSeeTasks = resident.canSeeTasks !== false; // Default to true if not specified
+        const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
 
-            const total = tasks.tasks?.length || resident.total || 0;
-            const done = resident.done || 0;
-            const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
-
-            return {
-              id: userId,
-              name: profile.name || resident.name || "User",
-              email: profile.email || "user@example.com",
-              facility: resident.facility || "Care Facility",
-              completionPercentage: percentage,
-              tasksCompleted: done,
-              tasksTotal: total,
-              status: percentage === 100 ? "Completed" : percentage >= 80 ? "Almost Done" : percentage >= 50 ? "In Progress" : "Just Started",
-              statusBadge: percentage === 100 ? "✅" : "⚠️",
-              lastActivity: resident.lastActivity || `${done}/${total} tasks completed`,
-            };
-          } catch (e) {
-            console.error("Error loading resident:", e);
-            return {
-              id: resident.userId || "u1",
-              name: resident.name || "User",
-              email: resident.email || "unknown@example.com",
-              facility: resident.facility || "Care Facility",
-              completionPercentage: 0,
-              tasksCompleted: resident.done || 0,
-              tasksTotal: resident.total || 0,
-              status: "Unable to load",
-              statusBadge: "❌",
-              lastActivity: "Error loading data",
-            };
-          }
-        })
-      );
+        return {
+          id: resident.userId,
+          name: resident.name || "User",
+          email: "user@example.com",
+          facility: "Care Facility",
+          completionPercentage: canSeeTasks ? percentage : 0,
+          tasksCompleted: canSeeTasks ? done : 0,
+          tasksTotal: canSeeTasks ? total : 0,
+          status: canSeeTasks ? (percentage === 100 ? "Completed" : percentage >= 80 ? "Almost Done" : percentage >= 50 ? "In Progress" : "Just Started") : "Insights Only",
+          statusBadge: canSeeTasks ? (percentage === 100 ? "✅" : "⚠️") : "🔒",
+          lastActivity: canSeeTasks ? `${done}/${total} tasks completed` : "Tasks hidden - view insights only",
+          canSeeTasks,
+        };
+      });
 
       setResidents(residentDetails);
 
@@ -181,11 +159,17 @@ export default function CaregiverDashboard() {
                   >
                     {/* Card Header */}
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-20 h-20 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center text-3xl font-bold text-slate-400">
-                        {(resident.name || "U")[0].toUpperCase()}
+                      <div className={`w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center text-3xl font-bold ${
+                        resident.canSeeTasks ? "bg-slate-100 text-slate-400" : "bg-slate-200 text-slate-500"
+                      }`}>
+                        {resident.canSeeTasks ? (
+                          (resident.name || "U")[0].toUpperCase()
+                        ) : (
+                          <span className="material-symbols-outlined text-2xl">lock</span>
+                        )}
                       </div>
-                      <div className={`${getStatusColor(resident.completionPercentage)} font-bold px-3 py-1 rounded-full text-sm`}>
-                        {resident.completionPercentage}% Done
+                      <div className={`${resident.canSeeTasks ? getStatusColor(resident.completionPercentage) : "bg-slate-100 text-slate-600"} font-bold px-3 py-1 rounded-full text-sm`}>
+                        {resident.canSeeTasks ? `${resident.completionPercentage}% Done` : "🔒 Insights"}
                       </div>
                     </div>
 
@@ -200,15 +184,22 @@ export default function CaregiverDashboard() {
 
                     {/* Status */}
                     <div className="flex justify-between items-center text-xs font-bold text-slate-400 mt-4 uppercase tracking-wider">
-                      <span>Daily Tasks</span>
-                      <span className={resident.completionPercentage === 100 ? "text-primary flex items-center gap-1" : "text-slate-400"}>
-                        {resident.completionPercentage === 100 ? (
-                          <>
-                            <span className="material-symbols-outlined text-sm">check_circle</span>
-                            Completed
-                          </>
+                      <span>{resident.canSeeTasks ? "Daily Tasks" : "View Mode"}</span>
+                      <span className={resident.canSeeTasks ? (resident.completionPercentage === 100 ? "text-primary flex items-center gap-1" : "text-slate-400") : "text-slate-500 flex items-center gap-1"}>
+                        {resident.canSeeTasks ? (
+                          resident.completionPercentage === 100 ? (
+                            <>
+                              <span className="material-symbols-outlined text-sm">check_circle</span>
+                              Completed
+                            </>
+                          ) : (
+                            resident.status
+                          )
                         ) : (
-                          resident.status
+                          <>
+                            <span className="material-symbols-outlined text-sm">lock</span>
+                            Insights Only
+                          </>
                         )}
                       </span>
                     </div>

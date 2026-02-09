@@ -26,14 +26,27 @@ async function jsonOrThrow(res) {
 
 /* ================= CAREGIVER ================= */
 
-export const getCaregiverOverview = () =>
-  fetch(`${BASE}/caregiver/overview`).then(jsonOrThrow);
+export const getCaregiverOverview = (caregiverId) =>
+  fetch(`${BASE}/caregiver/overview?caregiverId=${encodeURIComponent(caregiverId)}`).then(jsonOrThrow);
 
 export const getCaregiverWeeklyStats = () =>
   fetch(`${BASE}/caregiver/weekly-stats`).then(jsonOrThrow);
 
 export const getCaregiverRecentActivity = () =>
   fetch(`${BASE}/caregiver/recent-activity`).then(jsonOrThrow);
+
+export const getResidentPermissions = (userId, caregiverId) => {
+  const params = new URLSearchParams();
+  if (caregiverId) params.append("caregiverId", caregiverId);
+  return fetch(`${BASE}/caregiver/resident/${encodeURIComponent(userId)}/permissions?${params}`).then(jsonOrThrow);
+};
+
+export const removeResidentFromCaregiverList = (userId, caregiverId) =>
+  fetch(`${BASE}/caregiver/resident/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ caregiverId }),
+  }).then(jsonOrThrow);
 
 /* ================= USER FACE LOGIN (no password) ================= */
 export const userFaceLogin = (email) =>
@@ -60,6 +73,13 @@ export const getUserProfile = (userId) =>
 
 export const updateUserProfile = (userId, payload) =>
   fetch(`${BASE}/user/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, ...payload }),
+  }).then(jsonOrThrow);
+
+export const updateUserPreferences = (userId, payload) =>
+  fetch(`${BASE}/user/preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId, ...payload }),

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile, getTasks, createTask, updateTask, deleteTask, getTodayTasks, getStreaks } from "../api";
+import { getUserProfile, getTasks, createTask, updateTask, deleteTask, getTodayTasks, getStreaks, getResidentPermissions, removeResidentFromCaregiverList } from "../api";
 
 export default function CaregiverResidentDetail() {
   const { residentId } = useParams();
   const navigate = useNavigate();
   const caregiverName = localStorage.getItem("caregiverName") || "Caregiver";
+  const caregiverId = localStorage.getItem("caregiverId") || "";
 
   const [resident, setResident] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -13,6 +14,8 @@ export default function CaregiverResidentDetail() {
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
   const [independenceScore, setIndependenceScore] = useState(0);
+  const [canSeeTasks, setCanSeeTasks] = useState(true);
+  const [permissionLoading, setPermissionLoading] = useState(true);
 
   // Task management
   const [editingTask, setEditingTask] = useState(null);
@@ -26,28 +29,44 @@ export default function CaregiverResidentDetail() {
 
   async function loadData() {
     setLoading(true);
+    setPermissionLoading(true);
     try {
-      const [profile, allTasks, todayTasksData, streakData] = await Promise.all([
-        getUserProfile(residentId),
-        getTasks(residentId),
-        getTodayTasks(residentId),
-        getStreaks(residentId),
-      ]);
+      // First, check if caregiver has permission to see tasks
+      const permData = await getResidentPermissions(residentId, caregiverId);
+      setCanSeeTasks(permData.canSeeTasks);
 
-      setResident(profile);
-      setTasks(allTasks.tasks || []);
-      setTodayTasks(todayTasksData.tasks || []);
+      // Always load profile and independence data
+      const profileData = await getUserProfile(residentId);
+      const streakData = await getStreaks(residentId);
+      setResident(profileData);
       setStreak(streakData.currentStreak || 0);
 
-      // Calculate independence score based on completion rate
-      const totalTasks = allTasks.tasks?.length || 0;
-      const doneTasks = allTasks.tasks?.filter((t) => t.done)?.length || 0;
-      const completionRate = totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0;
-      setIndependenceScore(Math.round(completionRate));
+      // Only load task data if permission is granted
+      if (permData.canSeeTasks) {
+        const [allTasks, todayTasksData] = await Promise.all([
+          getTasks(residentId),
+          getTodayTasks(residentId),
+        ]);
+
+        setTasks(allTasks.tasks || []);
+        setTodayTasks(todayTasksData.tasks || []);
+
+        // Calculate independence score based on completion rate
+        const totalTasks = allTasks.tasks?.length || 0;
+        const doneTasks = allTasks.tasks?.filter((t) => t.done)?.length || 0;
+        const completionRate = totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0;
+        setIndependenceScore(Math.round(completionRate));
+      } else {
+        // If no permission, still calculate independence score from available data
+        // In this case, we'll just use the completion rate from the assigned resident view
+        // For now, set it to 0 as we don't have the calculation
+        setIndependenceScore(0);
+      }
     } catch (e) {
       console.error("Error loading resident data:", e);
     } finally {
       setLoading(false);
+      setPermissionLoading(false);
     }
   }
 
@@ -95,6 +114,19 @@ export default function CaregiverResidentDetail() {
       await loadData();
     } catch (e) {
       alert("Failed to update task: " + e.message);
+    }
+  }
+
+  async function handleRemoveResident() {
+    if (!confirm(`Are you sure you want to remove ${resident?.name || "this resident"} from your care list? This will unassign them from you, but their account and data will remain.`)) {
+      return;
+    }
+
+    try {
+      await removeResidentFromCaregiverList(residentId, caregiverId);
+      navigate("/caregiver");
+    } catch (e) {
+      alert("Failed to remove resident: " + e.message);
     }
   }
 
@@ -180,18 +212,28 @@ export default function CaregiverResidentDetail() {
             </div>
           </div>
           <div className="flex gap-3">
+            {canSeeTasks && (
+              <button
+                onClick={() => setShowAddTask(!showAddTask)}
+                className="flex items-center gap-2 bg-primary text-white hover:opacity-90 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-primary/20"
+              >
+                <span className="material-symbols-outlined text-lg">add</span>
+                Add Task
+              </button>
+            )}
             <button
-              onClick={() => setShowAddTask(!showAddTask)}
-              className="flex items-center gap-2 bg-primary text-white hover:opacity-90 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-primary/20"
+              onClick={handleRemoveResident}
+              className="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-600 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all"
+              title="Remove this resident from your care list"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
-              Add Task
+              <span className="material-symbols-outlined text-lg">person_remove</span>
+              Remove
             </button>
           </div>
         </div>
 
         {/* Add Task Form */}
-        {showAddTask && (
+        {showAddTask && canSeeTasks && (
           <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold mb-4">Add New Task</h3>
             <div className="space-y-4">
@@ -249,8 +291,23 @@ export default function CaregiverResidentDetail() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Panel: Current Routine Progress */}
+        <div className={`grid gap-8 ${canSeeTasks ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1"}`}>
+          {!canSeeTasks && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mb-4">
+              <div className="flex gap-4 items-start">
+                <span className="material-symbols-outlined text-blue-600 text-2xl flex-shrink-0">lock</span>
+                <div>
+                  <p className="font-bold text-blue-900 mb-1">Task Details Hidden</p>
+                  <p className="text-sm text-blue-700">
+                    {resident?.name || "This resident"} has not allowed you to view task details. 
+                    You can only view their independence insights below.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {canSeeTasks && (
           <div className="lg:col-span-7 flex flex-col gap-6">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
               <div className="flex items-center justify-between mb-6">
@@ -345,9 +402,10 @@ export default function CaregiverResidentDetail() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Right Panel: Independence Insights */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
+          <div className={canSeeTasks ? "lg:col-span-5 flex flex-col gap-6" : "w-full flex flex-col gap-6"}>
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold">Independence Insights</h3>
