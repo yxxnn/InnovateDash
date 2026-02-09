@@ -1,0 +1,21 @@
+Server.js Refactoring Summary
+==============================
+
+The monolithic server.js (1,397 lines) was split into 8 modular files:
+
+  server.js              - Entry point, middleware, DB init, bootstrap (~120 lines)
+  utils/helpers.js       - Time utilities, ID generation, notification helpers
+  routes/auth.js         - User & caregiver login, signup, face login
+  routes/users.js        - User profile CRUD, preference updates
+  routes/caregivers.js   - Caregiver profile, overview, resident management, weekly stats
+  routes/tasks.js        - Task CRUD, today tasks, toggle completion
+  routes/notifications.js - Notification retrieval, read status, preferences
+  routes/streaks.js      - Streak calculation endpoint
+  workers/reminder.js    - Background reminder worker for overdue critical tasks
+
+Each route module uses Express Router() and is mounted in the entry point via app.use().
+Shared helper functions (todayKey, insertNotification, generateResidentCode, etc.)
+were extracted to utils/helpers.js to avoid duplication.
+
+All API endpoints and request/response formats remain unchanged.
+The frontend required zero modifications.
