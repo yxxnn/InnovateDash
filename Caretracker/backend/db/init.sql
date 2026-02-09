@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   emoji TEXT NOT NULL,
   time TEXT NOT NULL,
-  is_critical BOOLEAN DEFAULT FALSE
+  is_critical BOOLEAN DEFAULT FALSE,
+  is_recurring BOOLEAN DEFAULT TRUE,
+  created_date_iso TEXT NOT NULL
 );
 
 -- Task logs (daily completion)

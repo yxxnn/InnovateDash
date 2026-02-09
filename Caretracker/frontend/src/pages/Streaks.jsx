@@ -40,7 +40,11 @@ export default function Streaks() {
         <aside className="hidden md:flex w-60 bg-white border-r border-slate-200 flex-col justify-between p-4">
           <div className="space-y-6">
             {/* Profile Section */}
-            <div className="flex items-center gap-3 p-2">
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-all text-left"
+            >
               <div className="w-11 h-11 rounded-full bg-[#19e619]/20 flex items-center justify-center overflow-hidden border-2 border-[#19e619]">
                 <span className="material-symbols-outlined text-[#19e619] text-2xl">person</span>
               </div>
@@ -48,7 +52,7 @@ export default function Streaks() {
                 <h2 className="text-base font-bold leading-tight">Hi, User!</h2>
                 <p className="text-xs text-slate-500">Ready for today?</p>
               </div>
-            </div>
+            </button>
 
             {/* Nav Links */}
             <nav className="space-y-2">
@@ -69,6 +73,13 @@ export default function Streaks() {
               <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-[#19e619] text-white shadow-md shadow-[#19e619]/20 transition-all">
                 <span className="material-symbols-outlined text-2xl">trending_up</span>
                 <span className="text-base font-semibold">My Streaks</span>
+              </button>
+              <button
+                onClick={() => navigate("/profile")}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all"
+              >
+                <span className="material-symbols-outlined text-2xl text-slate-600">account_circle</span>
+                <span className="text-base font-medium">Profile</span>
               </button>
               <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all">
                 <span className="material-symbols-outlined text-2xl text-slate-600">help</span>

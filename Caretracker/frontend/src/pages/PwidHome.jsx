@@ -151,26 +151,23 @@ export default function PwidHome() {
                 <span className="material-symbols-outlined text-2xl text-slate-600">trending_up</span>
                 <span className="text-base font-medium">My Streaks</span>
               </button>
-              <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all">
-                <span className="material-symbols-outlined text-2xl text-slate-600">help</span>
-                <span className="text-base font-medium">Help</span>
-              </button>
               <button
                 onClick={() => navigate("/profile")}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all"
               >
-                <span className="material-symbols-outlined text-2xl text-slate-600">person</span>
+                <span className="material-symbols-outlined text-2xl text-slate-600">account_circle</span>
                 <span className="text-base font-medium">Profile</span>
+              </button>
+              <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-100 transition-all">
+                <span className="material-symbols-outlined text-2xl text-slate-600">help</span>
+                <span className="text-base font-medium">Help</span>
               </button>
             </nav>
           </div>
 
           {/* Settings */}
           <div className="pt-4 border-t border-slate-100">
-            <button
-              onClick={() => navigate("/profile")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all"
-            >
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all">
               <span className="material-symbols-outlined text-xl text-slate-500">settings</span>
               <span className="text-sm font-medium">Settings</span>
             </button>

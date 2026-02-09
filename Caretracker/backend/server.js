@@ -122,16 +122,33 @@ async function ensureSchemaAndSeed() {
   const taskCount = await pool.query(`SELECT COUNT(*)::int AS c FROM tasks`);
   if (taskCount.rows[0].c === 0) {
     await pool.query(`
-      INSERT INTO tasks (id, user_id, title, emoji, time, is_critical) VALUES
-      ('t1','u1','Wash Face','🧼','07:00',false),
-      ('t2','u1','Brush Teeth','🪥','07:15',true),
-      ('t3','u1','Take Vitamin','💊','07:30',true),
-      ('t4','u1','Get Dressed','👕','07:45',false),
-      ('t5','u1','Clean Room','🧹','08:00',false);
-    `);
+      INSERT INTO tasks (id, user_id, title, emoji, time, is_critical, is_recurring, created_date_iso) VALUES
+      ('t1','u1','Wash Face','🧼','07:00',false,true,$1),
+      ('t2','u1','Brush Teeth','🪥','07:15',true,true,$1),
+      ('t3','u1','Take Vitamin','💊','07:30',true,true,$1),
+      ('t4','u1','Get Dressed','👕','07:45',false,true,$1),
+      ('t5','u1','Clean Room','🧹','08:00',false,true,$1);
+    `, [todayKey()]);
   }
 
   console.log("✅ DB schema + seed ready");
+}
+
+/* ---------------- CLEANUP OLD TODAY-ONLY TASKS ---------------- */
+async function cleanupOldTodayTasks() {
+  const today = todayKey();
+  
+  // Delete today-only tasks that are not from today
+  const result = await pool.query(
+    `DELETE FROM tasks 
+     WHERE is_recurring = false 
+     AND created_date_iso != $1`,
+    [today]
+  );
+
+  if (result.rowCount > 0) {
+    console.log(`🧹 Cleaned up ${result.rowCount} old today-only task(s)`);
+  }
 }
 
 /* ---------------- HEALTH ---------------- */
@@ -428,9 +445,13 @@ app.get("/tasks/today", async (req, res) => {
 
   const day = todayKey();
 
+  // Get all recurring tasks OR today-only tasks created today
   const tasks = await pool.query(
-    `SELECT * FROM tasks WHERE user_id=$1 ORDER BY time`,
-    [userId]
+    `SELECT * FROM tasks 
+     WHERE user_id=$1 
+     AND (is_recurring = true OR (is_recurring = false AND created_date_iso = $2))
+     ORDER BY time`,
+    [userId, day]
   );
 
   const logs = await pool.query(
@@ -448,6 +469,7 @@ app.get("/tasks/today", async (req, res) => {
       emoji: t.emoji,
       time: t.time,
       isCritical: t.is_critical,
+      isRecurring: t.is_recurring,
       done: doneSet.has(t.id),
     })),
   });
@@ -491,9 +513,15 @@ app.get("/tasks", async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ message: "userId required" });
 
+  const day = todayKey();
+
+  // Get all recurring tasks OR today-only tasks created today
   const r = await pool.query(
-    `SELECT * FROM tasks WHERE user_id=$1 ORDER BY time`,
-    [userId]
+    `SELECT * FROM tasks 
+     WHERE user_id=$1 
+     AND (is_recurring = true OR (is_recurring = false AND created_date_iso = $2))
+     ORDER BY time`,
+    [userId, day]
   );
 
   res.json({
@@ -502,23 +530,26 @@ app.get("/tasks", async (req, res) => {
       title: t.title,
       emoji: t.emoji,
       time: t.time,
-      isCritical: t.is_critical,
+      is_critical: t.is_critical,
+      is_recurring: t.is_recurring,
+      created_date: t.created_date_iso,
     })),
   });
 });
 
 /* ---------------- CAREGIVER: ADD TASK ---------------- */
 app.post("/tasks", async (req, res) => {
-  const { userId, title, emoji, time, isCritical } = req.body;
+  const { userId, title, emoji, time, isCritical, isRecurring } = req.body;
   if (!userId || !title || !emoji || !time)
     return res.status(400).json({ message: "Missing fields" });
 
   const id = "t_" + Math.random().toString(16).slice(2);
+  const createdDate = todayKey(); // YYYY-MM-DD for today
 
   await pool.query(
-    `INSERT INTO tasks (id, user_id, title, emoji, time, is_critical)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [id, userId, title, emoji, time, Boolean(isCritical)]
+    `INSERT INTO tasks (id, user_id, title, emoji, time, is_critical, is_recurring, created_date_iso)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, userId, title, emoji, time, Boolean(isCritical), Boolean(isRecurring ?? true), createdDate]
   );
 
   res.status(201).json({ id });
@@ -739,9 +770,13 @@ async function bootstrap() {
   }
 
   await ensureSchemaAndSeed();
+  await cleanupOldTodayTasks();
 
   // start worker only after tables exist
   setInterval(reminderWorker, 60 * 1000);
+  
+  // Cleanup old today-only tasks daily
+  setInterval(cleanupOldTodayTasks, 24 * 60 * 60 * 1000);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Backend running on http://localhost:${PORT}`);
