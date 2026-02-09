@@ -1,32 +1,32 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: caretrack_db
+    container_name: companioncare_db
     environment:
-      POSTGRES_USER: caretrack
-      POSTGRES_PASSWORD: caretrackpw
-      POSTGRES_DB: caretrack
+      POSTGRES_USER: companioncare
+      POSTGRES_PASSWORD: companioncarepw
+      POSTGRES_DB: companioncare
       TZ: Asia/Singapore
     ports:
       - "5432:5432"
     volumes:
-      - caretrack_data:/var/lib/postgresql/data
+      - companioncare_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U caretrack -d caretrack"]
+      test: ["CMD-SHELL", "pg_isready -U companioncare -d companioncare"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   backend:
     build: ./backend
-    container_name: caretrack_backend
+    container_name: companioncare_backend
     environment:
       PORT: 3000
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: caretrack
-      DB_PASSWORD: caretrackpw
-      DB_NAME: caretrack
+      DB_USER: companioncare
+      DB_PASSWORD: companioncarepw
+      DB_NAME: companioncare
       TZ: Asia/Singapore
     ports:
       - "3000:3000"
@@ -36,7 +36,7 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: caretrack_frontend
+    container_name: companioncare_frontend
     environment:
       VITE_API_BASE_URL: http://localhost:3000
     ports:
@@ -45,4 +45,4 @@ services:
       - backend
 
 volumes:
-  caretrack_data:
+  companioncare_data:
