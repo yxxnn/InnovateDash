@@ -660,7 +660,7 @@ export default function UserTasks() {
                 </div>
               </section>
 
-              {/* Today Only Tasks */}}
+              {/* Today Only Tasks */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 md:p-5">
                   <h2 className="text-lg md:text-xl font-bold text-white flex items-center justify-between">

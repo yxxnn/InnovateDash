@@ -16,6 +16,7 @@ export default function Streaks() {
   const userEmail = localStorage.getItem("userEmail") || "";
   const userName = localStorage.getItem("userName") || "";
   const userDisplayName = userName || (userEmail ? userEmail.split("@")[0] : "User");
+
   async function load() {
     try {
       setLoading(true);
@@ -230,6 +231,8 @@ export default function Streaks() {
                       : "Start your streak today by completing your tasks!"}
                   </p>
                 </div>
+
+                
               </>
             )}
           </div>
