@@ -21,6 +21,7 @@ export default function UserProfile() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [editEmail, setEditEmail] = useState("");
+  const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [faceVerifyOpen, setFaceVerifyOpen] = useState(false);
@@ -38,6 +39,8 @@ export default function UserProfile() {
         const data = await getUserProfile(userId);
         setProfile(data);
         setEditEmail(data.email ?? "");
+        const storedName = localStorage.getItem("userName") || "";
+        setEditName(storedName);
       } catch (e) {
         setError(e?.message || "Failed to load profile.");
       } finally {
@@ -98,7 +101,8 @@ export default function UserProfile() {
   }
 
   const displayEmail = (profile?.email ?? storedEmail) || "";
-  const displayName = displayNameFromEmail(displayEmail);
+  const storedName = localStorage.getItem("userName") || "";
+  const displayName = storedName || displayNameFromEmail(displayEmail);
 
   async function handleSave() {
     if (!userId) return;
@@ -110,6 +114,7 @@ export default function UserProfile() {
       });
       setProfile(updated);
       localStorage.setItem("userEmail", updated.email);
+      localStorage.setItem("userName", editName.trim());
       setEditing(false);
     } catch (e) {
       setError(e?.message || "Failed to save.");
@@ -198,6 +203,18 @@ export default function UserProfile() {
                       placeholder="your@email.com"
                       className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none"
                     />
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                        Full name
+                      </label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Enter your full name"
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none"
+                      />
+                    </div>
                     <div className="flex gap-3 pt-2">
                       <button
                         type="button"

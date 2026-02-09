@@ -14,8 +14,8 @@ export default function Streaks() {
   const [error, setError] = "";
 
   const userEmail = localStorage.getItem("userEmail") || "";
-  const userDisplayName = userEmail ? userEmail.split("@")[0] : "User";
-
+  const userName = localStorage.getItem("userName") || "";
+  const userDisplayName = userName || (userEmail ? userEmail.split("@")[0] : "User");
   async function load() {
     try {
       setLoading(true);

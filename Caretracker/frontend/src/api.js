@@ -86,6 +86,13 @@ export const deleteTask = (taskId) =>
     method: "DELETE",
   }).then(jsonOrThrow);
 
+export const updateTask = (taskId, payload) =>
+  fetch(`${BASE}/tasks/${taskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(jsonOrThrow);
+
 /* ================= STREAKS ================= */
 
 export const getStreaks = (userId) =>

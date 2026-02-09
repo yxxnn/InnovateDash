@@ -286,8 +286,8 @@ export default function PwidHome() {
   const { hours, minutes, ampm } = formatTime();
 
   const userEmail = localStorage.getItem("userEmail") || "";
-  const userDisplayName = userEmail ? userEmail.split("@")[0] : "User";
-
+  const userName = localStorage.getItem("userName") || "";
+  const userDisplayName = userName || (userEmail ? userEmail.split("@")[0] : "User");
   // Find the first undone and unlocked task index (this is the "current" task)
   const currentIndex = tasks.findIndex((t) => !t.done && !isBeforeTimeWindow(t));
 

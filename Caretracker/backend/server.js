@@ -593,7 +593,58 @@ app.delete("/tasks/:taskId", async (req, res) => {
   res.json({ ok: true });
 });
 
-/* ---------------- NOTIFICATIONS ---------------- */
+/* --------------- UPDATE TASK --------------- */
+app.patch("/tasks/:taskId", async (req, res) => {
+  const { taskId } = req.params;
+  const { title, emoji, time, isCritical, isRecurring } = req.body;
+
+  const updates = [];
+  const values = [];
+  let paramCount = 1;
+
+  if (title !== undefined) {
+    updates.push(`title=$${paramCount++}`);
+    values.push(title);
+  }
+  if (emoji !== undefined) {
+    updates.push(`emoji=$${paramCount++}`);
+    values.push(emoji);
+  }
+  if (time !== undefined) {
+    updates.push(`time=$${paramCount++}`);
+    values.push(time);
+  }
+  if (isCritical !== undefined) {
+    updates.push(`is_critical=$${paramCount++}`);
+    values.push(Boolean(isCritical));
+  }
+  if (isRecurring !== undefined) {
+    updates.push(`is_recurring=$${paramCount++}`);
+    values.push(Boolean(isRecurring));
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ message: "No fields to update" });
+  }
+
+  values.push(taskId);
+  const query = `UPDATE tasks SET ${updates.join(", ")} WHERE id=$${paramCount} RETURNING *`;
+
+  const r = await pool.query(query, values);
+
+  if (!r.rowCount) return res.status(404).json({ message: "Not found" });
+
+  res.json({
+    id: r.rows[0].id,
+    title: r.rows[0].title,
+    emoji: r.rows[0].emoji,
+    time: r.rows[0].time,
+    isCritical: r.rows[0].is_critical,
+    isRecurring: r.rows[0].is_recurring,
+  });
+});
+
+/* -------- NOTIFICATIONS -------- */
 app.get("/notifications", async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ message: "userId required" });

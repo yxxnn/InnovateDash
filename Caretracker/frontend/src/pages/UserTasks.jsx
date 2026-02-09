@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createTask, deleteTask, getTasks } from "../api";
+import { createTask, deleteTask, getTasks, updateTask } from "../api";
 
 export default function UserTasks() {
   const navigate = useNavigate();
   const userId = localStorage.getItem("userId") || "u1";
+
+  const userEmail = localStorage.getItem("userEmail") || "";
+  const userName = localStorage.getItem("userName") || "";
+  const userDisplayName = userName || (userEmail ? userEmail.split("@")[0] : "User");
 
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
@@ -22,6 +26,8 @@ export default function UserTasks() {
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [editingGroupName, setEditingGroupName] = useState("");
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTaskData, setEditingTaskData] = useState({});
 
   async function load() {
     try {
@@ -82,6 +88,37 @@ export default function UserTasks() {
     } catch (e) {
       setStatus(e.message || "Delete failed");
     }
+  }
+
+  function startEditingTask(task) {
+    setEditingTaskId(task.id);
+    setEditingTaskData({
+      title: task.title,
+      emoji: task.emoji,
+      time: task.time,
+      isCritical: task.is_critical,
+      isRecurring: task.is_recurring,
+    });
+  }
+
+  async function saveEditedTask() {
+    if (!editingTaskId) return;
+    setStatus("Saving...");
+    try {
+      await updateTask(editingTaskId, editingTaskData);
+      setStatus("Task updated successfully!");
+      setEditingTaskId(null);
+      setEditingTaskData({});
+      await load();
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus(e.message || "Update failed");
+    }
+  }
+
+  function cancelEditingTask() {
+    setEditingTaskId(null);
+    setEditingTaskData({});
   }
 
   // Drag and drop handlers
@@ -217,7 +254,7 @@ export default function UserTasks() {
                 <span className="material-symbols-outlined text-[#19e619] text-2xl">person</span>
               </div>
               <div>
-                <h2 className="text-base font-bold leading-tight">Hi, User!</h2>
+                <h2 className="text-base font-bold leading-tight">Hi, {userDisplayName}!</h2>
                 <p className="text-xs text-slate-500">Ready for today?</p>
               </div>
             </button>
@@ -232,8 +269,8 @@ export default function UserTasks() {
                 <span className="text-base font-medium">My Day</span>
               </button>
               <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-[#19e619] text-white shadow-md shadow-[#19e619]/20 transition-all">
-                <span className="material-symbols-outlined text-2xl">add_task</span>
-                <span className="text-base font-semibold">Create Tasks</span>
+                <span className="material-symbols-outlined text-2xl">edit_note</span>
+                <span className="text-base font-semibold">Manage Tasks</span>
               </button>
               <button
                 onClick={() => navigate("/streaks")}
@@ -273,7 +310,7 @@ export default function UserTasks() {
               <div className="w-9 h-9 rounded-full bg-[#19e619]/20 flex items-center justify-center border-2 border-[#19e619]">
                 <span className="material-symbols-outlined text-[#19e619] text-lg">person</span>
               </div>
-              <h2 className="text-base font-bold">Hi, User!</h2>
+              <h2 className="text-base font-bold">Hi, {userDisplayName}!</h2>
             </div>
             {view !== "landing" && (
               <button
@@ -307,7 +344,7 @@ export default function UserTasks() {
                       <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center mb-4 mx-auto group-hover:rotate-12 transition-transform">
                         <span className="material-symbols-outlined text-4xl md:text-5xl">add_circle</span>
                       </div>
-                      <h2 className="text-lg md:text-xl font-bold mb-2">Create New Task</h2>
+                      <h2 className="text-lg md:text-xl font-bold mb-2">Manage Tasks  </h2>
                       <p className="text-xs md:text-sm text-white/90">
                         Add a new task to your daily routine
                       </p>
@@ -602,12 +639,20 @@ export default function UserTasks() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => onDelete(task.id)}
-                            className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-200 hover:border-red-300"
-                          >
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEditingTask(task)}
+                              className="px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-blue-200"
+                            >
+                              <span className="material-symbols-outlined text-lg">edit</span>
+                            </button>
+                            <button
+                              onClick={() => onDelete(task.id)}
+                              className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-200 hover:border-red-300"
+                            >
+                              <span className="material-symbols-outlined text-lg">delete</span>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -615,7 +660,7 @@ export default function UserTasks() {
                 </div>
               </section>
 
-              {/* Today Only Tasks */}
+              {/* Today Only Tasks */}}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 md:p-5">
                   <h2 className="text-lg md:text-xl font-bold text-white flex items-center justify-between">
@@ -677,12 +722,20 @@ export default function UserTasks() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => onDelete(task.id)}
-                            className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-200 hover:border-red-300"
-                          >
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEditingTask(task)}
+                              className="px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-blue-200"
+                            >
+                              <span className="material-symbols-outlined text-lg">edit</span>
+                            </button>
+                            <button
+                              onClick={() => onDelete(task.id)}
+                              className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-200 hover:border-red-300"
+                            >
+                              <span className="material-symbols-outlined text-lg">delete</span>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -989,6 +1042,100 @@ export default function UserTasks() {
                     setShowNewGroupModal(false);
                     setNewGroupName("");
                   }}
+                  className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTaskId && (
+        <div
+          onClick={cancelEditingTask}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-800">Edit Task</h3>
+              <button
+                onClick={cancelEditingTask}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined text-slate-400">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Title</label>
+                <input
+                  type="text"
+                  value={editingTaskData.title || ""}
+                  onChange={(e) => setEditingTaskData({...editingTaskData, title: e.target.value})}
+                  placeholder="Task title"
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Emoji</label>
+                <input
+                  type="text"
+                  value={editingTaskData.emoji || ""}
+                  onChange={(e) => setEditingTaskData({...editingTaskData, emoji: e.target.value})}
+                  placeholder="😊"
+                  maxLength="2"
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Time</label>
+                <input
+                  type="time"
+                  value={editingTaskData.time || ""}
+                  onChange={(e) => setEditingTaskData({...editingTaskData, time: e.target.value})}
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingTaskData.isCritical || false}
+                    onChange={(e) => setEditingTaskData({...editingTaskData, isCritical: e.target.checked})}
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Critical</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingTaskData.isRecurring ?? true}
+                    onChange={(e) => setEditingTaskData({...editingTaskData, isRecurring: e.target.checked})}
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Recurring</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={saveEditedTask}
+                  className="flex-1 py-3 bg-gradient-to-r from-[#19e619] to-[#15c213] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-[#19e619]/30 transition-all"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={cancelEditingTask}
                   className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
                 >
                   Cancel
