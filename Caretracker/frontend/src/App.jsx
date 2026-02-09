@@ -2,6 +2,8 @@ import { Routes, Route } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import PwidHome from "./pages/PwidHome";
 import CaregiverDashboard from "./pages/CaregiverDashboard";
+import CaregiverResidentDetail from "./pages/CaregiverResidentDetail";
+import AddResident from "./pages/AddResident";
 import Login from "./pages/Login";
 import CaregiverLogin from "./pages/CaregiverLogin";
 import UserLogin from "./pages/UserLogin";
@@ -10,6 +12,7 @@ import UserSignup from "./pages/UserSignup";
 import CaregiverSignup from "./pages/CaregiverSignup";
 import CaregiverProfile from "./pages/CaregiverProfile";
 import UserProfile from "./pages/UserProfile";
+import UserSettings from "./pages/UserSettings";
 import Insights from "./pages/Insights";
 import Streaks from "./pages/Streaks";
 import UserTasks from "./pages/UserTasks";
@@ -26,7 +29,10 @@ export default function App() {
       <Route path="/signup" element={<UserSignup />} />
       <Route path="/caregiver/signup" element={<CaregiverSignup />} />
       <Route path="/caregiver/profile" element={<CaregiverProfile />} />
+      <Route path="/caregiver/resident/:residentId" element={<CaregiverResidentDetail />} />
+      <Route path="/caregiver/add-resident" element={<AddResident />} />
       <Route path="/profile" element={<UserProfile />} />
+      <Route path="/settings" element={<UserSettings />} />
       <Route path="/pwid" element={<PwidHome />} />
       <Route path="/user-tasks" element={<UserTasks />} />
       <Route path="/streaks" element={<Streaks />} />

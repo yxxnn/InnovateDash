@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL,
   created_at_iso TEXT NOT NULL
 );

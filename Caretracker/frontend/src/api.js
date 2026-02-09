@@ -29,6 +29,12 @@ async function jsonOrThrow(res) {
 export const getCaregiverOverview = () =>
   fetch(`${BASE}/caregiver/overview`).then(jsonOrThrow);
 
+export const getCaregiverWeeklyStats = () =>
+  fetch(`${BASE}/caregiver/weekly-stats`).then(jsonOrThrow);
+
+export const getCaregiverRecentActivity = () =>
+  fetch(`${BASE}/caregiver/recent-activity`).then(jsonOrThrow);
+
 /* ================= USER FACE LOGIN (no password) ================= */
 export const userFaceLogin = (email) =>
   fetch(`${BASE}/user/face-login`, {

@@ -102,9 +102,9 @@ async function ensureSchemaAndSeed() {
   const userCount = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
   if (userCount.rows[0].c === 0) {
     await pool.query(
-      `INSERT INTO users (id,email,password,role,created_at_iso) VALUES
-       ('u1','user1@123','123456','User',$1),
-       ('u2','user2@123','123456','User',$1);`,
+      `INSERT INTO users (id,email,password,name,role,created_at_iso) VALUES
+       ('u1','user1@123','123456','John Doe','User',$1),
+       ('u2','user2@123','123456','Jane Smith','User',$1);`,
       [now]
     );
   }
@@ -191,7 +191,7 @@ app.post("/caregiver/login", async (req, res) => {
 /* ------------ USER SIGNUP ------------ */
 app.post("/user/signup", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
@@ -205,16 +205,18 @@ app.post("/user/signup", async (req, res) => {
     }
 
     const userId = "u_" + Math.random().toString(16).slice(2);
+    const userName = name || email.split("@")[0];
 
     await pool.query(
-      `INSERT INTO users (id,email,password,role,created_at_iso)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [userId, email, password, "User", new Date().toISOString()]
+      `INSERT INTO users (id,email,password,name,role,created_at_iso)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [userId, email, password, userName, "User", new Date().toISOString()]
     );
 
     res.status(201).json({
       userId,
       email,
+      name: userName,
       message: "User account created successfully",
     });
   } catch (e) {
@@ -280,7 +282,7 @@ app.get("/user/profile", async (req, res) => {
       return res.status(400).json({ message: "userId required" });
     }
     const q = await pool.query(
-      `SELECT id, email, role, created_at_iso FROM users WHERE id=$1`,
+      `SELECT id, email, name, role, created_at_iso FROM users WHERE id=$1`,
       [userId]
     );
     if (q.rows.length === 0) {
@@ -290,6 +292,7 @@ app.get("/user/profile", async (req, res) => {
     res.json({
       id: row.id,
       email: row.email,
+      name: row.name,
       role: row.role,
       createdAt: row.created_at_iso,
     });
@@ -300,15 +303,18 @@ app.get("/user/profile", async (req, res) => {
 
 app.patch("/user/profile", async (req, res) => {
   try {
-    const { userId, email } = req.body;
+    const { userId, email, name } = req.body;
     if (!userId) {
       return res.status(400).json({ message: "userId required" });
     }
     if (email !== undefined && email !== "") {
       await pool.query(`UPDATE users SET email=$1 WHERE id=$2`, [email, userId]);
     }
+    if (name !== undefined && name !== "") {
+      await pool.query(`UPDATE users SET name=$1 WHERE id=$2`, [name, userId]);
+    }
     const q = await pool.query(
-      `SELECT id, email, role, created_at_iso FROM users WHERE id=$1`,
+      `SELECT id, email, name, role, created_at_iso FROM users WHERE id=$1`,
       [userId]
     );
     if (q.rows.length === 0) {
@@ -318,6 +324,7 @@ app.patch("/user/profile", async (req, res) => {
     res.json({
       id: row.id,
       email: row.email,
+      name: row.name,
       role: row.role,
       createdAt: row.created_at_iso,
     });
@@ -455,6 +462,127 @@ app.get("/caregiver/overview", async (req, res) => {
     res.json({
       date: day,
       overview: [{ name, done, total, missedCritical, risk }],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---- CAREGIVER: WEEKLY STATS (7-day completion percentage) ---- */
+app.get("/caregiver/weekly-stats", async (req, res) => {
+  try {
+    // MVP: caregiver monitors user u1
+    const userId = "u1";
+
+    // Get all tasks for this user
+    const tasks = await pool.query(
+      `SELECT id FROM tasks WHERE user_id=$1`,
+      [userId]
+    );
+
+    const taskIds = tasks.rows.map((t) => t.id);
+    const totalTasks = taskIds.length;
+
+    if (totalTasks === 0) {
+      // No tasks, return all zeros
+      return res.json({
+        weeklyTrend: [0, 0, 0, 0, 0, 0, 0],
+      });
+    }
+
+    // Get past 7 days of completion data
+    const weeklyData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayStr = new Intl.DateTimeFormat("en-CA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(date);
+
+      const logs = await pool.query(
+        `SELECT DISTINCT task_id FROM task_logs WHERE user_id=$1 AND date_iso=$2`,
+        [userId, dayStr]
+      );
+
+      const completedCount = logs.rows.length;
+      const percentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+      weeklyData.push(percentage);
+    }
+
+    res.json({
+      weeklyTrend: weeklyData,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* =============== CAREGIVER: RECENT ACTIVITY =============== */
+app.get("/caregiver/recent-activity", async (req, res) => {
+  try {
+    // MVP: Get activity for hardcoded user "u1"
+    const userId = "u1";
+
+    // Get the user's name
+    const userQuery = await pool.query(
+      `SELECT name FROM users WHERE id=$1`,
+      [userId]
+    );
+    const userName = userQuery.rows[0]?.name || "User";
+
+    // Get recent task completions (past 7 days)
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+
+    const recentTasksQuery = await pool.query(
+      `SELECT DISTINCT tl.date_iso, t.title, t.emoji, COUNT(*) as tasksCompleted
+       FROM task_logs tl
+       JOIN tasks t ON tl.task_id = t.id
+       WHERE tl.user_id=$1 AND tl.date_iso >= $2
+       GROUP BY tl.date_iso, t.title, t.emoji
+       ORDER BY tl.date_iso DESC
+       LIMIT 10`,
+      [userId, sevenDaysAgoStr]
+    );
+
+    // Get total tasks for the day to check if all completed
+    const todayKey = today.toISOString().split("T")[0];
+    const allTasksQuery = await pool.query(
+      `SELECT COUNT(*) as totalTasks FROM tasks WHERE user_id=$1 AND is_recurring=true`,
+      [userId]
+    );
+    const totalTasks = parseInt(allTasksQuery.rows[0]?.totaltasks, 10) || 0;
+
+    const completedTodayQuery = await pool.query(
+      `SELECT COUNT(DISTINCT task_id) as completedTasks FROM task_logs 
+       WHERE user_id=$1 AND date_iso=$2`,
+      [userId, todayKey]
+    );
+    const completedToday = parseInt(completedTodayQuery.rows[0]?.completedtasks, 10) || 0;
+    const allTasksCompleted = totalTasks > 0 && completedToday >= totalTasks;
+
+    const activities = recentTasksQuery.rows.map((row) => ({
+      date: row.date_iso,
+      task: row.title,
+      emoji: row.emoji,
+      isAllCompleted: false, // Check if this is today's last task
+    }));
+
+    // Mark today's activity as all completed if applicable
+    if (activities.length > 0 && activities[0].date === todayKey && allTasksCompleted) {
+      activities[0].isAllCompleted = true;
+    }
+
+    res.json({
+      userName,
+      userId,
+      activities: activities.length > 0 ? activities : [],
+      allTasksCompletedToday: allTasksCompleted,
+      completedToday,
+      totalTasks,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
