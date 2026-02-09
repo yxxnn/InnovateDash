@@ -11,7 +11,8 @@ export default function Streaks() {
   const [weeklyRate, setWeeklyRate] = useState(0);
   const [last7Days, setLast7Days] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = "";
+  const [error, setError] = useState("");
+
 
   const userEmail = localStorage.getItem("userEmail") || "";
   const userName = localStorage.getItem("userName") || "";
@@ -230,6 +231,8 @@ export default function Streaks() {
                       : "Start your streak today by completing your tasks!"}
                   </p>
                 </div>
+
+                
               </>
             )}
           </div>

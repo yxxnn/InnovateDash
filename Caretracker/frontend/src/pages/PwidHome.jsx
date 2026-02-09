@@ -305,20 +305,42 @@ export default function PwidHome() {
         {/* Sidebar Navigation */}
         <aside className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col justify-between p-6 shadow-lg">
           <div className="space-y-6">
-            {/* Profile Section */}
-            <button
-              type="button"
-              onClick={() => navigate("/profile")}
-              className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-all text-left"
-            >
-              <div className="w-11 h-11 rounded-full bg-[#19e619]/20 flex items-center justify-center overflow-hidden border-2 border-[#19e619]">
-                <span className="material-symbols-outlined text-[#19e619] text-2xl">person</span>
-              </div>
-              <div>
-                <h2 className="text-base font-bold leading-tight">Hi, {userDisplayName}!</h2>
-                <p className="text-xs text-slate-500">Ready for today?</p>
-              </div>
-            </button>
+            <div className="flex items-center justify-between gap-2">
+  <button
+    type="button"
+    onClick={() => navigate("/profile")}
+    className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-all text-left flex-1"
+  >
+    <div className="w-11 h-11 rounded-full bg-[#19e619]/20 flex items-center justify-center overflow-hidden border-2 border-[#19e619]">
+      <span className="material-symbols-outlined text-[#19e619] text-2xl">
+        person
+      </span>
+    </div>
+    <div>
+      <h2 className="text-base font-bold leading-tight">
+        Hi, {userDisplayName}!
+      </h2>
+      <p className="text-xs text-slate-500">Ready for today?</p>
+    </div>
+  </button>
+
+  {/* 🔔 Notification Button (YOUR FEATURE ENTRY) */}
+  <button
+    onClick={() => navigate("/insights")}
+    className="relative p-2 rounded-xl hover:bg-slate-100 transition"
+    aria-label="Notifications"
+  >
+    <span className="material-symbols-outlined text-2xl text-slate-600">
+      notifications
+    </span>
+
+    {/* Red badge (static for now, or wire to unread count later) */}
+    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+  </button>
+</div>
+
+
+            
 
             {/* Nav Links */}
             <nav className="space-y-2">
@@ -367,23 +389,39 @@ export default function PwidHome() {
         <main className="flex-1 overflow-y-auto bg-[#f6f8f6] p-3 md:p-6">
           {/* Mobile Header */}
           <div className="md:hidden flex items-center justify-between mb-4">
-            <button
-              type="button"
-              onClick={() => navigate("/profile")}
-              className="flex items-center gap-2"
-            >
-              <div className="w-9 h-9 rounded-full bg-[#19e619]/20 flex items-center justify-center border-2 border-[#19e619]">
-                <span className="material-symbols-outlined text-[#19e619] text-lg">person</span>
-              </div>
-              <h2 className="text-base font-bold">Hi, {userDisplayName}!</h2>
-            </button>
-            <button
-              onClick={() => navigate("/user-tasks")}
-              className="px-3 py-1.5 text-xs font-semibold bg-[#19e619] text-white rounded-lg hover:bg-[#15c213] transition-colors"
-            >
-              Create Tasks
-            </button>
-          </div>
+  <button
+    type="button"
+    onClick={() => navigate("/profile")}
+    className="flex items-center gap-2"
+  >
+    <div className="w-9 h-9 rounded-full bg-[#19e619]/20 flex items-center justify-center border-2 border-[#19e619]">
+      <span className="material-symbols-outlined text-[#19e619] text-lg">
+        person
+      </span>
+    </div>
+    <h2 className="text-base font-bold">Hi, {userDisplayName}!</h2>
+  </button>
+
+  <div className="flex items-center gap-2">
+    {/* 🔔 Notifications */}
+    <button
+      onClick={() => navigate("/insights")}
+      className="relative p-2 rounded-lg hover:bg-slate-100"
+    >
+      <span className="material-symbols-outlined text-xl">
+        notifications
+      </span>
+      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+    </button>
+
+    <button
+      onClick={() => navigate("/user-tasks")}
+      className="px-3 py-1.5 text-xs font-semibold bg-[#19e619] text-white rounded-lg"
+    >
+      Create Tasks
+    </button>
+  </div>
+</div>
 
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Progress Header Card */}

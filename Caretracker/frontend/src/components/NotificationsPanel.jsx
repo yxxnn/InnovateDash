@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
-function typeMeta(type) {
-  if (type === "FOLLOW_UP") return { icon: "⏳", label: "Follow-up" };
-  if (type === "SUMMARY") return { icon: "📊", label: "Daily Summary" };
-  return { icon: "🔔", label: "Reminder" };
+function meta(type) {
+  if (type === "FOLLOW_UP") return { icon: "⏳", label: "Follow-up", pill: "bg-yellow-100 text-yellow-700" };
+  if (type === "SUMMARY") return { icon: "📊", label: "Summary", pill: "bg-slate-100 text-slate-700" };
+  return { icon: "🔔", label: "Reminder", pill: "bg-[#19e619]/15 text-[#159e15]" };
 }
 
 export default function NotificationsPanel({ userId = "u1" }) {
@@ -29,136 +29,109 @@ export default function NotificationsPanel({ userId = "u1" }) {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000); // poll for demo
+    const t = setInterval(load, 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [userId]);
+
+  const unreadCount = items.filter((n) => !n.read).length;
 
   return (
-    <div style={styles.panel}>
-      <div style={styles.panelHeader}>
-        <div style={styles.panelTitle}>Notifications</div>
-        <div style={styles.panelHint}>Latest updates & reminders</div>
+    <section className="bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-slate-100">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg md:text-xl font-black text-slate-800 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#19e619]">notifications</span>
+            Notifications
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">New reminders will appear here.</p>
+        </div>
+
+        {unreadCount > 0 && (
+          <div className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-bold">
+            {unreadCount} new
+          </div>
+        )}
       </div>
 
-      {loading && <div style={styles.muted}>Loading…</div>}
-      {!loading && items.length === 0 && (
-        <div style={styles.empty}>No notifications yet.</div>
+      {loading && (
+        <div className="text-sm text-slate-500 flex items-center gap-2">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          Loading…
+        </div>
       )}
 
-      <div style={{ display: "grid", gap: 10 }}>
+      {!loading && items.length === 0 && (
+        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-slate-600">
+          No notifications yet.
+        </div>
+      )}
+
+      <div className="grid gap-3">
         {items.map((n) => {
-          const meta = typeMeta(n.type);
-          const dateStr = new Date(n.createdAt).toLocaleString();
+          const m = meta(n.type);
+          const when = new Date(n.createdAt).toLocaleString();
 
           return (
             <div
               key={n.id}
-              style={{
-                ...styles.card,
-                ...(n.read ? styles.cardRead : styles.cardUnread),
-              }}
+              className={`rounded-2xl border p-4 transition ${
+                n.read ? "bg-slate-50 border-slate-100" : "bg-white border-[#19e619]/25"
+              }`}
             >
-              <div style={styles.cardTop}>
-                <div style={styles.badge}>
-                  <span style={{ fontSize: 16 }}>{meta.icon}</span>
-                  <span style={{ fontWeight: 900 }}>{meta.label}</span>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${m.pill}`}>
+                    {m.icon} {m.label}
+                  </span>
+
+                  {!n.read && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600">
+                      <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                      New
+                    </span>
+                  )}
                 </div>
 
-                <div style={styles.time}>{dateStr}</div>
+                <div className="text-xs text-slate-500">{when}</div>
               </div>
 
-              <div style={styles.message}>{n.message}</div>
+              {/* ✅ Show task title clearly if backend sends taskTitle */}
+              <div className="mt-3">
+                {n.taskTitle ? (
+                  <>
+                    <div className="text-base font-black text-slate-800">
+                      {n.taskEmoji ? `${n.taskEmoji} ` : ""}{n.taskTitle}
+                    </div>
+                    {n.taskTime && (
+                      <div className="text-sm text-slate-500 mt-0.5">{n.taskTime}</div>
+                    )}
+                    <div className="text-sm text-slate-700 mt-2">{n.message}</div>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-700">{n.message}</div>
+                )}
+              </div>
 
-              <div style={styles.cardActions}>
+              <div className="mt-3 flex justify-end">
                 {!n.read ? (
-                  <button style={styles.readBtn} onClick={() => markRead(n.id)}>
+                  <button
+                    onClick={() => markRead(n.id)}
+                    className="px-4 py-2 rounded-xl bg-[#19e619] text-white font-bold hover:bg-[#15c213] transition active:scale-95"
+                    type="button"
+                  >
                     Mark as read
                   </button>
                 ) : (
-                  <div style={styles.readState}>Read ✓</div>
+                  <div className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-base">done</span>
+                    Read
+                  </div>
                 )}
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
-
-const styles = {
-  panel: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    borderRadius: 18,
-    padding: 16,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.20)",
-  },
-  panelHeader: { marginBottom: 12 },
-  panelTitle: { fontSize: 18, fontWeight: 900 },
-  panelHint: { fontSize: 13, opacity: 0.7, marginTop: 2 },
-
-  muted: { opacity: 0.75 },
-  empty: { opacity: 0.75, padding: 10 },
-
-  card: {
-    borderRadius: 16,
-    padding: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(10, 15, 35, 0.35)",
-  },
-  cardUnread: {
-    boxShadow: "0 0 0 1px rgba(99,102,241,0.30) inset",
-  },
-  cardRead: {
-    opacity: 0.78,
-  },
-
-  cardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  badge: {
-    display: "inline-flex",
-    gap: 8,
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-  },
-  time: { fontSize: 12, opacity: 0.75 },
-
-  message: {
-    marginTop: 10,
-    fontSize: 15,
-    fontWeight: 800,
-    lineHeight: 1.3,
-    color: "#f9fafb",
-  },
-
-  cardActions: {
-    marginTop: 12,
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 10,
-  },
-  readBtn: {
-    padding: "8px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(99,102,241,0.22)",
-    color: "#f9fafb",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  readState: {
-    fontSize: 13,
-    opacity: 0.85,
-    fontWeight: 800,
-  },
-};

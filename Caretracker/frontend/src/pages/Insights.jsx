@@ -1,223 +1,86 @@
 import { useEffect, useState } from "react";
-import AppHeader from "../components/AppHeader";
+import { useNavigate } from "react-router-dom";
 import NotificationsPanel from "../components/NotificationsPanel";
-import WeeklyAnalytics from "../components/WeeklyAnalytics";
+
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export default function Insights() {
-  const userId = "u1";
+  const navigate = useNavigate();
+  const userId = localStorage.getItem("userId") || "u1";
 
-  const [quietStart, setQuietStart] = useState("22:00");
-  const [quietEnd, setQuietEnd] = useState("07:00");
-  const [followupMinutes, setFollowupMinutes] = useState(15);
-
-  const [disableQuiet, setDisableQuiet] = useState(false);
-  const [status, setStatus] = useState("");
-
-  async function loadPrefs() {
-    setStatus("");
-    const r = await fetch(`${API}/prefs/notifications?userId=${userId}`);
-    const data = await r.json();
-    setQuietStart(data.quietStart || "22:00");
-    setQuietEnd(data.quietEnd || "07:00");
-    setFollowupMinutes(Number(data.followupMinutes ?? 15));
-  }
-
-  async function savePrefs(next) {
-    setStatus("Saving...");
-    const payload = next || {
-      userId,
-      quietStart,
-      quietEnd,
-      followupMinutes: Number(followupMinutes),
-    };
-
-    const r = await fetch(`${API}/prefs/notifications`, {
+  // ✅ PWID: read-only (no quiet hours controls shown)
+  useEffect(() => {
+    fetch(`${API}/notifications/mark-all-read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
+  }, [userId]);
 
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      setStatus(err.message || "Save failed");
-      return;
-    }
-    setStatus("Saved ✅");
-    setTimeout(() => setStatus(""), 1500);
-    await loadPrefs();
-  }
-
-  function restoreDefault() {
-    setDisableQuiet(false);
-    setQuietStart("22:00");
-    setQuietEnd("07:00");
-    setFollowupMinutes(15);
-    savePrefs({
-      userId,
-      quietStart: "22:00",
-      quietEnd: "07:00",
-      followupMinutes: 15,
-    });
-  }
-
-  async function onToggleDisableQuiet(checked) {
-    setDisableQuiet(checked);
-
-    if (checked) {
-      // "Disable quiet" = quiet is only 1 minute long, so reminders work anytime
-      await savePrefs({
-        userId,
-        quietStart: "00:00",
-        quietEnd: "00:01",
-        followupMinutes: Number(followupMinutes),
-      });
-    } else {
-      // back to whatever user set in the inputs
-      await savePrefs({
-        userId,
-        quietStart,
-        quietEnd,
-        followupMinutes: Number(followupMinutes),
-      });
-    }
-  }
-
-  useEffect(() => {
-    loadPrefs();
-  }, []);
+  const userEmail = localStorage.getItem("userEmail") || "";
+  const userName = localStorage.getItem("userName") || "";
+  const userDisplayName = userName || (userEmail ? userEmail.split("@")[0] : "User");
 
   return (
-    <>
-      <AppHeader
-        userName="Alex"
-        role="User"
-        onOpenInsights={() => (window.location.href = "/insights")}
-        onLogout={() => (window.location.href = "/login")}
-      />
+    <div className="bg-[#f6f8f6] text-slate-900 min-h-screen">
+      {/* Top Bar */}
+      <div className="max-w-4xl mx-auto px-3 md:px-6 pt-5">
+        <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/pwid")}
+              className="p-2 rounded-xl hover:bg-slate-100 transition"
+              aria-label="Back"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-2xl text-slate-600">arrow_back</span>
+            </button>
 
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: 20 }}>
-        <h1 style={{ margin: "8px 0 14px", fontSize: 22 }}>Updates & Progress</h1>
-
-        {/* ✅ Quiet Hours Settings Card */}
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.14)",
-            background: "rgba(255,255,255,0.08)",
-            borderRadius: 16,
-            padding: 14,
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>Quiet Hours</div>
-              <div style={{ opacity: 0.75, fontSize: 13 }}>
-                Quiet hours prevent reminders at night to reduce stress.
+              <div className="text-sm text-slate-500 font-semibold">Updates & Progress</div>
+              <div className="text-xl md:text-2xl font-black text-slate-800">
+                Hi, {userDisplayName}
               </div>
             </div>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={disableQuiet}
-                onChange={(e) => onToggleDisableQuiet(e.target.checked)}
-              />
-              <span style={{ fontWeight: 800 }}>Disable quiet hours (testing)</span>
-            </label>
           </div>
 
-          <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ minWidth: 120, fontWeight: 800 }}>Quiet start</div>
-              <input
-                type="time"
-                value={quietStart}
-                onChange={(e) => setQuietStart(e.target.value)}
-                disabled={disableQuiet}
-                style={inputStyle}
-              />
-
-              <div style={{ minWidth: 100, fontWeight: 800 }}>Quiet end</div>
-              <input
-                type="time"
-                value={quietEnd}
-                onChange={(e) => setQuietEnd(e.target.value)}
-                disabled={disableQuiet}
-                style={inputStyle}
-              />
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex items-center gap-2 px-3 py-2 rounded-2xl hover:bg-slate-100 transition"
+            type="button"
+          >
+            <div className="w-9 h-9 rounded-full bg-[#19e619]/20 border-2 border-[#19e619] flex items-center justify-center">
+              <span className="material-symbols-outlined text-[#19e619]">person</span>
             </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ minWidth: 220, fontWeight: 800 }}>Follow-up reminder (minutes)</div>
-              <input
-                type="number"
-                min="1"
-                max="120"
-                value={followupMinutes}
-                onChange={(e) => setFollowupMinutes(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                onClick={() =>
-                  savePrefs({
-                    userId,
-                    quietStart,
-                    quietEnd,
-                    followupMinutes: Number(followupMinutes),
-                  })
-                }
-                disabled={disableQuiet}
-                style={btnStyle}
-              >
-                Save quiet hours
-              </button>
-
-              <button onClick={restoreDefault} style={btnStyle}>
-                Restore default (10PM–7AM)
-              </button>
-
-              {status && <span style={{ alignSelf: "center", opacity: 0.85 }}>{status}</span>}
-            </div>
-          </div>
+            <span className="text-sm font-bold text-slate-700 hidden sm:inline">Profile</span>
+          </button>
         </div>
-
-        {/* Your features */}
-        <div style={{ display: "grid", gap: 16 }}>
-          <NotificationsPanel userId={userId} />
-          <WeeklyAnalytics userId={userId} />
-        </div>
-
-        <button
-          onClick={() => (window.location.href = "/pwid")}
-          style={{ ...btnStyle, marginTop: 16 }}
-        >
-          ← Back to Tasks
-        </button>
       </div>
-    </>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-3 md:px-6 py-6 space-y-6">
+        {/* Friendly helper card */}
+        <div className="bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-slate-100">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-[#19e619]/15 flex items-center justify-center border border-[#19e619]/20">
+              <span className="material-symbols-outlined text-[#19e619] text-2xl">notifications</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-lg font-black text-slate-800">Your reminders</div>
+              <p className="text-sm text-slate-600 mt-1">
+                If you see a reminder, you can go back and complete the task when you’re ready.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Panels */}
+        <div className="grid gap-6">
+          <NotificationsPanel userId={userId} />
+          
+        </div>
+      </div>
+    </div>
   );
 }
-
-const inputStyle = {
-  padding: "9px 10px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "rgba(255,255,255,0.10)",
-  color: "#f9fafb",
-  fontWeight: 800,
-};
-
-const btnStyle = {
-  padding: "9px 12px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "rgba(255,255,255,0.10)",
-  color: "#f9fafb",
-  fontWeight: 800,
-  cursor: "pointer",
-};
