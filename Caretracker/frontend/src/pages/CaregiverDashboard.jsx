@@ -117,9 +117,6 @@ export default function CaregiverDashboard() {
               </p>
             </div>
             <div className="flex gap-4">
-              <button className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
               <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 pr-4 rounded-xl shadow-sm">
                 <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
                   {(caregiverName || "C")[0].toUpperCase()}

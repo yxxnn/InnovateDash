@@ -94,7 +94,7 @@ export default function Streaks() {
 
           {/* Settings */}
           <div className="pt-4 border-t border-slate-100">
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all">
+            <button onClick={() => navigate("/settings")} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-all">
               <span className="material-symbols-outlined text-xl text-slate-500">settings</span>
               <span className="text-sm font-medium">Settings</span>
             </button>

@@ -48,6 +48,16 @@ export default function UserSettings() {
         if (data.allowCaregiverEdit !== undefined) {
           setAllowCaregiverEdit(data.allowCaregiverEdit);
         }
+        // Load notification preferences
+        if (data.notifyComplete !== undefined) {
+          setNotifyTaskComplete(data.notifyComplete);
+        }
+        if (data.notifyReminder !== undefined) {
+          setNotifyTaskReminder(data.notifyReminder);
+        }
+        if (data.notifyStreak !== undefined) {
+          setNotifyStreak(data.notifyStreak);
+        }
       } catch (e) {
         setError("Failed to load settings");
       } finally {
@@ -113,9 +123,9 @@ export default function UserSettings() {
 
   async function handleNotificationChange(prefKey, newValue) {
     // Update local state first
-    if (prefKey === "complete") setNotifyTaskComplete(newValue);
-    if (prefKey === "reminder") setNotifyTaskReminder(newValue);
-    if (prefKey === "streak") setNotifyStreak(newValue);
+    if (prefKey === "notifyComplete") setNotifyTaskComplete(newValue);
+    if (prefKey === "notifyReminder") setNotifyTaskReminder(newValue);
+    if (prefKey === "notifyStreak") setNotifyStreak(newValue);
 
     try {
       await updateUserPreferences(userId, {
@@ -124,9 +134,9 @@ export default function UserSettings() {
     } catch (e) {
       setError(e?.message || "Failed to save notification preference");
       // Revert on error
-      if (prefKey === "complete") setNotifyTaskComplete(!newValue);
-      if (prefKey === "reminder") setNotifyTaskReminder(!newValue);
-      if (prefKey === "streak") setNotifyStreak(!newValue);
+      if (prefKey === "notifyComplete") setNotifyTaskComplete(!newValue);
+      if (prefKey === "notifyReminder") setNotifyTaskReminder(!newValue);
+      if (prefKey === "notifyStreak") setNotifyStreak(!newValue);
     }
   }
 

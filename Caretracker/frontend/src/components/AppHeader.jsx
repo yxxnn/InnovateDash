@@ -37,19 +37,6 @@ export default function AppHeader({
           )}
 
           <button
-  type="button"
-  style={styles.bell}
-  onClick={() => {
-    if (onOpenInsights) onOpenInsights();
-    else window.location.href = "/insights"; // fallback
-  }}
-  aria-label="Open updates and progress"
-  title="Updates & Progress"
->
-  🔔
-</button>
-
-          <button
             type="button"
             style={styles.logout}
             onClick={() => {

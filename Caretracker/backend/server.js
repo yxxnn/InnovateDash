@@ -332,7 +332,13 @@ app.get("/user/profile", async (req, res) => {
       return res.status(400).json({ message: "userId required" });
     }
     const q = await pool.query(
-      `SELECT id, email, name, role, created_at_iso, allow_caregiver_see, allow_caregiver_edit, resident_code FROM users WHERE id=$1`,
+      `SELECT u.id, u.email, u.name, u.role, u.created_at_iso, u.allow_caregiver_see, u.allow_caregiver_edit, u.resident_code,
+              COALESCE(np.notify_complete, true) as notify_complete,
+              COALESCE(np.notify_reminder, true) as notify_reminder,
+              COALESCE(np.notify_streak, true) as notify_streak
+       FROM users u
+       LEFT JOIN notification_prefs np ON u.id = np.user_id
+       WHERE u.id=$1`,
       [userId]
     );
     if (q.rows.length === 0) {
@@ -348,6 +354,9 @@ app.get("/user/profile", async (req, res) => {
       allowCaregiverSee: row.allow_caregiver_see,
       allowCaregiverEdit: row.allow_caregiver_edit,
       residentCode: row.resident_code,
+      notifyComplete: row.notify_complete,
+      notifyReminder: row.notify_reminder,
+      notifyStreak: row.notify_streak,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1016,17 +1025,13 @@ app.patch("/user/preferences", async (req, res) => {
 
       if (exists.rows.length === 0) {
         // Insert new record
-        let inserts = [userId];
-        let insertValues = [$1];
-        let insertCount = 2;
-
         let completeVal = notifyComplete !== undefined ? notifyComplete : true;
         let reminderVal = notifyReminder !== undefined ? notifyReminder : true;
         let streakVal = notifyStreak !== undefined ? notifyStreak : true;
 
         await pool.query(
           `INSERT INTO notification_prefs (user_id, notify_complete, notify_reminder, notify_streak) 
-           VALUES ($1, $${insertCount++}, $${insertCount++}, $${insertCount++})`,
+           VALUES ($1, $2, $3, $4)`,
           [userId, Boolean(completeVal), Boolean(reminderVal), Boolean(streakVal)]
         );
       } else {
@@ -1218,9 +1223,11 @@ async function reminderWorker() {
   );
 
   const prefs =
-    pref.rows[0] || { quiet_start: "22:00", quiet_end: "07:00", followup_minutes: 15 };
+    pref.rows[0] || { quiet_start: "22:00", quiet_end: "07:00", followup_minutes: 15, notify_reminder: true };
 
+  // Skip if in quiet hours or reminders are disabled
   if (inQuietHours(now, prefs.quiet_start, prefs.quiet_end)) return;
+  if (!prefs.notify_reminder) return;
 
   const tasks = await pool.query(`SELECT * FROM tasks WHERE user_id=$1`, [userId]);
   const done = await pool.query(
@@ -1230,17 +1237,42 @@ async function reminderWorker() {
 
   const doneSet = new Set(done.rows.map((x) => x.task_id));
 
+  // Get current time in minutes
+  const [nowHH, nowMM] = now.split(":").map(Number);
+  const nowMinutes = nowHH * 60 + nowMM;
+
   for (const t of tasks.rows) {
+    // Only check critical tasks
+    if (!t.is_critical) continue;
+
     const taskTime = taskTimeToHHMM(t.time);
     if (!taskTime) continue;
 
-    if (taskTime === now && !doneSet.has(t.id)) {
-      await insertNotification({
-        userId,
-        taskId: t.id,
-        type: "REMINDER",
-        message: `Time to complete: ${t.title}`,
-      });
+    // Skip if task already completed
+    if (doneSet.has(t.id)) continue;
+
+    // Parse task time
+    const [taskHH, taskMM] = taskTime.split(":").map(Number);
+    const taskMinutes = taskHH * 60 + taskMM;
+
+    // Check if task is 10+ minutes overdue
+    const minutesPassed = nowMinutes - taskMinutes;
+    if (minutesPassed >= 10) {
+      // Check if reminder already sent today for this task
+      const existingReminder = await pool.query(
+        `SELECT id FROM notifications WHERE user_id=$1 AND task_id=$2 AND type='REMINDER' AND created_at_iso::date=$3`,
+        [userId, t.id, today]
+      );
+
+      // Only send if no reminder exists yet
+      if (existingReminder.rows.length === 0) {
+        await insertNotification({
+          userId,
+          taskId: t.id,
+          type: "REMINDER",
+          message: `⏰ Your critical task "${t.title}" is overdue by ${minutesPassed} minutes!`,
+        });
+      }
     }
   }
 }

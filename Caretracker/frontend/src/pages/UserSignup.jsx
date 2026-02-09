@@ -4,6 +4,7 @@ import { BASE } from "../api";
 
 export default function UserSignup() {
   const navigate = useNavigate();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,6 +16,11 @@ export default function UserSignup() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!fullName.trim()) {
+      setError("Full name is required");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -32,7 +38,7 @@ export default function UserSignup() {
       const response = await fetch(`${BASE}/user/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, name: fullName.trim() }),
       });
 
       const data = await response.json();
@@ -112,6 +118,34 @@ export default function UserSignup() {
 
             {/* Signup Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Full Name Field */}
+              <div>
+                <label
+                  className="block text-zinc-700 text-sm font-semibold mb-2"
+                  htmlFor="fullName"
+                >
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <span className="material-symbols-outlined text-zinc-400 text-xl">
+                      person
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    required
+                    autoComplete="name"
+                    className="block w-full pl-11 pr-4 py-3 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
               {/* Email Field */}
               <div>
                 <label
