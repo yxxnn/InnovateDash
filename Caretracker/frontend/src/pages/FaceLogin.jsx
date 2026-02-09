@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { userFaceLogin } from "../api";
 
 export default function FaceLogin() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const [email, setEmail] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("Click to enable camera");
+  const [message, setMessage] = useState("Enter your account email, then enable camera.");
   const [stream, setStream] = useState(null);
 
   // Initialize camera
@@ -27,12 +29,9 @@ export default function FaceLogin() {
         audio: false
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        setStream(mediaStream);
-        setCameraActive(true);
-        setMessage("Camera ready. Position your face in the circle.");
-      }
+      setStream(mediaStream);
+      setCameraActive(true);
+      setMessage("Camera ready. Position your face in the circle.");
     } catch (err) {
       setError("Unable to access camera. Please check permissions.");
       setMessage("Camera access denied");
@@ -50,8 +49,13 @@ export default function FaceLogin() {
     }
   };
 
-  // Capture face
+  // Face login: check face (form only), then log in with email only (no password)
   const captureFace = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError("Please enter your account email.");
+      return;
+    }
     if (!videoRef.current || !canvasRef.current || !cameraActive) return;
 
     try {
@@ -59,34 +63,34 @@ export default function FaceLogin() {
       setError("");
       setMessage("Recognizing face...");
 
-      // Capture video frame
       const context = canvasRef.current.getContext("2d");
       context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+      await new Promise((r) => setTimeout(r, 1500));
 
-      // In production, you would send the image to a face recognition API
-      // For now, we'll simulate the process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Simulate successful recognition
       setMessage("Face recognized! Logging in...");
-      
-      // Simulate login
-      const mockToken = "user_" + Math.random().toString(16).slice(2);
-      localStorage.setItem("userToken", mockToken);
-      localStorage.setItem("userId", "u1"); // Demo user
+      const data = await userFaceLogin(trimmedEmail);
+
+      localStorage.setItem("userToken", data.token);
+      localStorage.setItem("userId", data.userId);
+      if (data.email) localStorage.setItem("userEmail", data.email);
 
       setTimeout(() => {
         stopCamera();
         navigate("/pwid");
-      }, 1500);
+      }, 800);
     } catch (err) {
-      setError("Face recognition failed. Please try again.");
+      setError(err?.message || "Login failed. Use user1@123 or user2@123.");
       setMessage("Try again");
-      console.error("Face capture error:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, cameraActive]);
 
   useEffect(() => {
     return () => {
@@ -134,7 +138,25 @@ export default function FaceLogin() {
                 Face Login
               </h1>
               <p className="text-zinc-500 text-sm mt-2">
-                Use your face to sign in securely.
+                Enter your account email, then use your face to sign in (no password).
+              </p>
+            </div>
+
+            {/* Email input */}
+            <div className="mb-6">
+              <label htmlFor="face-email" className="block text-sm font-semibold text-zinc-700 mb-2">
+                Account email
+              </label>
+              <input
+                id="face-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. user1@123 or user2@123"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-400 focus:border-[#19e619] focus:ring-2 focus:ring-[#19e619]/20 outline-none"
+              />
+              <p className="text-xs text-zinc-500 mt-1.5">
+                Use one of the existing user accounts. Password is not required for face login.
               </p>
             </div>
 
@@ -213,10 +235,10 @@ export default function FaceLogin() {
                 <>
                   <button
                     onClick={captureFace}
-                    disabled={loading}
-                    className="w-full bg-[#19e619] hover:bg-[#15c213] disabled:bg-zinc-400 text-zinc-900 text-sm font-bold py-3.5 rounded-lg transition-all transform active:scale-[0.99] shadow-md shadow-[#19e619]/10 flex items-center justify-center gap-2"
+                    disabled={loading || !email.trim()}
+                    className="w-full bg-[#19e619] hover:bg-[#15c213] disabled:bg-zinc-400 disabled:cursor-not-allowed text-zinc-900 text-sm font-bold py-3.5 rounded-lg transition-all transform active:scale-[0.99] shadow-md shadow-[#19e619]/10 flex items-center justify-center gap-2"
                   >
-                    <span>{loading ? "Recognizing..." : "Confirm Face"}</span>
+                    <span>{loading ? "Recognizing…" : "Sign in with face"}</span>
                     <span className="material-symbols-outlined text-xl">
                       {loading ? "schedule" : "check_circle"}
                     </span>

@@ -249,6 +249,29 @@ app.post("/user/login", async (req, res) => {
   }
 });
 
+/* ------------ USER FACE LOGIN (no password, for Face Login page only) ------------ */
+app.post("/user/face-login", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ message: "Email required" });
+    }
+    const trimmedEmail = email.trim();
+    const query = await pool.query(
+      `SELECT id FROM users WHERE email=$1 AND role='User'`,
+      [trimmedEmail]
+    );
+    if (query.rows.length === 0) {
+      return res.status(401).json({ message: "No account with this email. Use user1@123 or user2@123." });
+    }
+    const userId = query.rows[0].id;
+    const token = "user_" + Math.random().toString(16).slice(2);
+    res.json({ token, userId, email: trimmedEmail, message: "Login successful" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ------------ USER PROFILE ------------ */
 app.get("/user/profile", async (req, res) => {
   try {
